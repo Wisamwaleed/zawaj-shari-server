@@ -16,10 +16,14 @@ const storage = multer.diskStorage({
   },
 });
 
+// صور الكاميرا الحديثة (خصوصاً الهواتف عالية الدقة) قد تتجاوز 10 ميغابايت بسهولة
+// حتى بجودة JPEG عادية؛ 20 ميغابايت تستوعب الغالبية العظمى منها دون رفض غير مبرَّر.
+export const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+
 /** رفع صورة شخصية واحدة بحقل باسم "photo". */
 export const uploadPhoto = multer({
   storage,
-  limits: { fileSize: 3 * 1024 * 1024 }, // 3 ميغابايت
+  limits: { fileSize: MAX_PHOTO_BYTES },
   fileFilter: (req, file, cb) => {
     if (ALLOWED.includes(file.mimetype)) return cb(null, true);
     cb(Object.assign(new Error('يُسمح فقط بصور JPG أو PNG أو WEBP'), { status: 400 }));

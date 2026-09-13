@@ -3,7 +3,7 @@ import path from 'node:path';
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
-import { uploadPhoto, uploadsPath } from '../middleware/upload.js';
+import { uploadPhoto, uploadsPath, MAX_PHOTO_BYTES } from '../middleware/upload.js';
 import { GENDERS, RELIGIOUS_LEVELS } from '../services/relations.js';
 
 const router = Router();
@@ -92,7 +92,15 @@ router.put('/me', authRequired, async (req, res, next) => {
 
 router.post('/me/photo', authRequired, (req, res, next) => {
   uploadPhoto(req, res, async (err) => {
-    if (err) return res.status(err.status || 400).json({ error: err.message });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        const mb = Math.round(MAX_PHOTO_BYTES / (1024 * 1024));
+        return res
+          .status(413)
+          .json({ error: `حجم الصورة كبير جداً. الحد الأقصى ${mb} ميغابايت.` });
+      }
+      return res.status(err.status || 400).json({ error: err.message });
+    }
     if (!req.file) return res.status(400).json({ error: 'يرجى اختيار صورة' });
     try {
       const prev = await query(
