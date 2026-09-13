@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 import { httpError } from '../middleware/error.js';
+import { getUserGender } from './relations.js';
 
 /**
  * حدود كل "طبقة" اشتراك (tier). -1 = بلا حدود.
@@ -93,16 +94,30 @@ export const PAID_OFFERS_BY_ID = Object.fromEntries(
   PAID_OFFERS.map((o) => [o.id, o])
 );
 
-export const FREE_PLAN_INFO = {
-  id: 'free',
-  name: 'مجاني',
-  duration: 'دائم',
-  features: [
-    'تصفح الملفات المطابقة',
-    'حتى 3 طلبات تعارف يومياً',
-    'حتى 10 رسائل يومياً في كل محادثة',
-  ],
-};
+/**
+ * وصف الخطة المجانية - يختلف بحسب الجنس لأن الإناث مُعفَيات دائماً من حدّي
+ * الطلبات والرسائل (راجع getEffectiveLimits)، بينما تبقى مزايا Platinum
+ * (الزوّار/الأولوية/الشارة) تتطلب اشتراكاً فعلياً للجميع.
+ */
+export function getFreePlanInfo(gender) {
+  const unlimited = gender === 'female';
+  return {
+    id: 'free',
+    name: 'مجاني',
+    duration: 'دائم',
+    features: unlimited
+      ? [
+          'تصفح الملفات المطابقة',
+          'طلبات تعارف غير محدودة',
+          'رسائل غير محدودة',
+        ]
+      : [
+          'تصفح الملفات المطابقة',
+          'حتى 3 طلبات تعارف يومياً',
+          'حتى 10 رسائل يومياً في كل محادثة',
+        ],
+  };
+}
 
 /**
  * الاشتراك الفعلي للمستخدم بعد مراعاة انتهاء الصلاحية.
@@ -140,6 +155,26 @@ export async function getPlan(userId) {
   return plan;
 }
 
+/**
+ * حدود الطلبات/الرسائل الفعلية للمستخدم، بعد مراعاة استثناء الإناث.
+ * الإناث بلا حدود على الطلبات والرسائل دائماً - بغضّ النظر عن نوع الاشتراك -
+ * لكن مزايا Platinum الأخرى (من زار ملفك، الأولوية، الشارة) تبقى تتطلب اشتراكاً فعلياً
+ * كما هي لكل الجنسين؛ يمكن للأنثى الاشتراك اختيارياً للحصول عليها.
+ * @returns {{ dailyRequests: number, dailyMessagesPerConversation: number, exemptByGender: boolean }}
+ */
+export async function getEffectiveLimits(userId) {
+  const gender = await getUserGender(userId);
+  if (gender === 'female') {
+    return { dailyRequests: -1, dailyMessagesPerConversation: -1, exemptByGender: true };
+  }
+  const plan = await getPlan(userId);
+  return {
+    dailyRequests: plan.dailyRequests,
+    dailyMessagesPerConversation: plan.dailyMessagesPerConversation,
+    exemptByGender: false,
+  };
+}
+
 /** هل لدى المستخدم اشتراك Platinum ساري المفعول؟ */
 export async function hasActivePlatinum(userId) {
   const { effectiveTier } = await getEffectiveSubscription(userId);
@@ -167,29 +202,29 @@ export async function messagesSentTodayInConversation(userId, requestId) {
   return rows[0].n;
 }
 
-/** يتحقق أن المستخدم لم يتجاوز حد طلبات التعارف اليومي (وفق الاشتراك الفعلي). */
+/** يتحقق أن المستخدم لم يتجاوز حد طلبات التعارف اليومي (مع استثناء الإناث دائماً). */
 export async function assertCanSendRequest(userId) {
-  const plan = await getPlan(userId);
-  if (plan.dailyRequests < 0) return;
+  const { dailyRequests } = await getEffectiveLimits(userId);
+  if (dailyRequests < 0) return;
   const used = await requestsSentToday(userId);
-  if (used >= plan.dailyRequests) {
+  if (used >= dailyRequests) {
     throw httpError(
       429,
-      `بلغت الحد اليومي (${plan.dailyRequests} طلبات) في الخطة المجانية. رقِّ اشتراكك لطلبات غير محدودة.`,
+      `بلغت الحد اليومي (${dailyRequests} طلبات) في الخطة المجانية. رقِّ اشتراكك لطلبات غير محدودة.`,
       { code: 'LIMIT_REACHED' }
     );
   }
 }
 
-/** يتحقق أن المستخدم لم يتجاوز حد الرسائل اليومي في هذه المحادثة (وفق الاشتراك الفعلي). */
+/** يتحقق أن المستخدم لم يتجاوز حد الرسائل اليومي في هذه المحادثة (مع استثناء الإناث دائماً). */
 export async function assertCanSendMessage(userId, requestId) {
-  const plan = await getPlan(userId);
-  if (plan.dailyMessagesPerConversation < 0) return;
+  const { dailyMessagesPerConversation } = await getEffectiveLimits(userId);
+  if (dailyMessagesPerConversation < 0) return;
   const used = await messagesSentTodayInConversation(userId, requestId);
-  if (used >= plan.dailyMessagesPerConversation) {
+  if (used >= dailyMessagesPerConversation) {
     throw httpError(
       429,
-      `بلغت الحد اليومي (${plan.dailyMessagesPerConversation} رسائل في المحادثة) في الخطة المجانية. رقِّ اشتراكك لرسائل غير محدودة.`,
+      `بلغت الحد اليومي (${dailyMessagesPerConversation} رسائل في المحادثة) في الخطة المجانية. رقِّ اشتراكك لرسائل غير محدودة.`,
       { code: 'LIMIT_REACHED' }
     );
   }

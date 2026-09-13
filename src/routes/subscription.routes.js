@@ -4,10 +4,12 @@ import { authRequired } from '../middleware/auth.js';
 import {
   PAID_OFFERS,
   PAID_OFFERS_BY_ID,
-  FREE_PLAN_INFO,
+  getFreePlanInfo,
   getEffectiveSubscription,
+  getEffectiveLimits,
   requestsSentToday,
 } from '../services/limits.js';
+import { getUserGender } from '../services/relations.js';
 
 const router = Router();
 
@@ -15,10 +17,12 @@ const router = Router();
 router.get('/', authRequired, async (req, res, next) => {
   try {
     const sub = await getEffectiveSubscription(req.userId);
+    const limits = await getEffectiveLimits(req.userId);
     const usedRequests = await requestsSentToday(req.userId);
+    const gender = await getUserGender(req.userId);
 
     res.json({
-      freePlan: FREE_PLAN_INFO,
+      freePlan: getFreePlanInfo(gender),
       paidOffers: PAID_OFFERS,
       // الطبقة المخزّنة والفعلية (قد تختلفان إذا انتهت الصلاحية)
       storedTier: sub.storedTier,
@@ -28,7 +32,8 @@ router.get('/', authRequired, async (req, res, next) => {
       hasVisitorsFeature: sub.plan.hasVisitorsFeature,
       usage: {
         requestsToday: usedRequests,
-        dailyRequestLimit: sub.plan.dailyRequests, // -1 = بلا حدود
+        dailyRequestLimit: limits.dailyRequests, // -1 = بلا حدود (يشمل استثناء الإناث)
+        exemptByGender: limits.exemptByGender,
       },
     });
   } catch (err) {
