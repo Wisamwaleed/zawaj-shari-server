@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import { config } from './config/index.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { pledgeRequired } from './middleware/auth.js';
+import { MAX_PHOTO_BYTES } from './middleware/upload.js';
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import photoRoutes from './routes/photos.routes.js';
@@ -21,6 +22,16 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// نقطة تشخيص: تكشف فوراً إن كان النشر الحالي على Railway يحمل آخر تعديلات الكود
+// (مثل رفع حد حجم الصورة) أم لا يزال إصداراً قديماً. 404 على هذا المسار نفسه = نشر قديم.
+const bootedAt = new Date().toISOString();
+app.get('/api/version', (req, res) =>
+  res.json({
+    bootedAt,
+    maxPhotoUploadMB: Math.round(MAX_PHOTO_BYTES / (1024 * 1024)),
+  })
+);
 
 // المصادقة فقط (متاحة قبل الموافقة على التعهّد: /auth/me و /auth/pledge).
 app.use('/api/auth', authRoutes);
