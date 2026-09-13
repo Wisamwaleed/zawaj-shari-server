@@ -7,7 +7,7 @@ import {
   OPPOSITE_GENDER,
   RELIGIOUS_LEVELS,
 } from '../services/relations.js';
-import { platinumActiveSql } from '../services/subscriptionSql.js';
+import { platinumActiveSql, subscriberActiveSql } from '../services/subscriptionSql.js';
 
 const router = Router();
 
@@ -76,6 +76,52 @@ router.get('/', authRequired, async (req, res, next) => {
                 p.updated_at DESC NULLS LAST
        LIMIT 60`,
       values
+    );
+    res.json({ profiles: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * تبويب "الترشيحات": يعرض فقط المشتركين (Plus أو Platinum) من الجنس المقابل.
+ * نفس قيود /browse (الجنس المقابل، استبعاد المحظورين) لكن بدون فلاتر اختيارية،
+ * وبأولوية ظهور Platinum قبل Plus.
+ */
+router.get('/recommended', authRequired, async (req, res, next) => {
+  try {
+    const myGender = await getUserGender(req.userId);
+    if (!myGender) {
+      return res.json({ profiles: [], needsGender: true });
+    }
+    const targetGender = OPPOSITE_GENDER[myGender];
+
+    const { rows } = await query(
+      `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
+              p.marital_status, p.education, p.bio, p.marriage_conditions,
+              p.religious_commitment,
+              (p.photo_path IS NOT NULL) AS has_photo,
+              ${platinumActiveSql('u')} AS is_platinum,
+              r.id     AS request_id,
+              r.status AS request_status,
+              r.sender_id AS request_sender_id
+       FROM profiles p
+       JOIN users u ON u.id = p.user_id
+       LEFT JOIN interest_requests r
+         ON (r.sender_id = $1 AND r.receiver_id = p.user_id)
+         OR (r.receiver_id = $1 AND r.sender_id = p.user_id)
+       WHERE p.user_id <> $1
+         AND p.gender = $2
+         AND ${subscriberActiveSql('u')}
+         AND p.user_id NOT IN (
+           SELECT blocked_id FROM blocks WHERE blocker_id = $1
+           UNION
+           SELECT blocker_id FROM blocks WHERE blocked_id = $1
+         )
+       ORDER BY ${platinumActiveSql('u')} DESC,
+                p.updated_at DESC NULLS LAST
+       LIMIT 60`,
+      [req.userId, targetGender]
     );
     res.json({ profiles: rows });
   } catch (err) {
