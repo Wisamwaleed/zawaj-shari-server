@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -14,14 +16,23 @@ import messageRoutes from './routes/messages.routes.js';
 import moderationRoutes from './routes/moderation.routes.js';
 import subscriptionRoutes from './routes/subscription.routes.js';
 import visitsRoutes from './routes/visits.routes.js';
+import appVersionRoutes from './routes/appVersion.routes.js';
+import downloadRoutes from './routes/download.routes.js';
+
+const dir = path.dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
 
 app.use(cors({ origin: config.clientOrigin }));
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(express.static(path.join(dir, '..', 'public')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// عامة بلا مصادقة عمداً: تحديث التطبيق وصفحة التنزيل يجب أن يعملا حتى قبل تسجيل الدخول.
+app.use('/api/app-version', appVersionRoutes);
+app.use('/download', downloadRoutes);
 
 // نقطة تشخيص: تكشف فوراً إن كان النشر الحالي على Railway يحمل آخر تعديلات الكود
 // (مثل رفع حد حجم الصورة) أم لا يزال إصداراً قديماً. 404 على هذا المسار نفسه = نشر قديم.

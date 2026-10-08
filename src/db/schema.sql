@@ -106,3 +106,20 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (referred_id)
 );
+
+-- إعدادات عامة للتطبيق يُعدَّلها المطوّر مباشرة (key/value، كل القيم نصوص).
+-- انظر src/services/settings.js لقائمة المفاتيح المعروفة وقيمها الافتراضية.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- القيم الافتراضية الحالية: التطبيق موزَّع كـ APK مباشر (لا Google Play بعد)
+-- والاشتراك مجاني مؤقتاً للجميع (FREE_MODE) - انظر طلب المستخدم الأصلي.
+INSERT INTO app_settings (key, value) VALUES
+  ('FREE_MODE', 'true'),
+  ('MIN_VERSION_CODE', '1'),
+  ('LATEST_VERSION_CODE', '1'),
+  ('APK_URL', ''),
+  ('CHANGELOG', '')
+ON CONFLICT (key) DO NOTHING;

@@ -22,9 +22,10 @@ router.get('/', authRequired, async (req, res, next) => {
     const gender = await getUserGender(req.userId);
 
     res.json({
+      freeMode: sub.freeMode,
       freePlan: getFreePlanInfo(gender),
       paidOffers: PAID_OFFERS,
-      // الطبقة المخزّنة والفعلية (قد تختلفان إذا انتهت الصلاحية)
+      // الطبقة المخزّنة والفعلية (قد تختلفان إذا انتهت الصلاحية أو كان FREE_MODE مفعَّلاً)
       storedTier: sub.storedTier,
       currentTier: sub.effectiveTier,
       expiresAt: sub.expiresAt,

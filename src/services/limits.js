@@ -1,20 +1,22 @@
 import { query } from '../db/pool.js';
 import { httpError } from '../middleware/error.js';
 import { getUserGender } from './relations.js';
+import { isFreeMode } from './settings.js';
 
 /**
  * حدود كل "طبقة" اشتراك (tier). -1 = بلا حدود.
  * الطبقة هي ما يُخزَّن في users.subscription_tier: free | plus | platinum.
  * المدة (أسبوع/شهر) لا تُخزَّن كطبقة، بل تُحدِّد subscription_expires_at فقط.
+ * هذه هي حدود الخطة المجانية الحقيقية حين يكون FREE_MODE مُعطَّلاً؛ حين يكون
+ * مفعَّلاً تتجاوز getEffectiveSubscription الطبقة المخزَّنة بالكامل إلى platinum
+ * للجميع، دون تعديل أي شيء هنا (انظر getEffectiveSubscription أدناه).
  */
 export const PLANS = {
   free: {
     id: 'free',
     name: 'مجاني',
-    // عرض ترويجي حالي: الطلبات والرسائل غير محدودة للجميع مجاناً.
-    // مزايا Platinum (الزوّار/الأولوية/الشارة) تبقى حصرية للمشتركين أو عبر مكافأة الدعوة.
-    dailyRequests: -1,
-    dailyMessagesPerConversation: -1,
+    dailyRequests: 3,
+    dailyMessagesPerConversation: 10,
     hasVisitorsFeature: false,
   },
   plus: {
@@ -99,27 +101,39 @@ export const PAID_OFFERS_BY_ID = Object.fromEntries(
 /**
  * وصف الخطة المجانية - يختلف بحسب الجنس لأن الإناث مُعفَيات دائماً من حدّي
  * الطلبات والرسائل (راجع getEffectiveLimits)، بينما تبقى مزايا Platinum
- * (الزوّار/الأولوية/الشارة) تتطلب اشتراكاً فعلياً للجميع.
+ * (الزوّار/الأولوية/الشارة) تتطلب اشتراكاً فعلياً للجميع. (لا تُستخدَم هذه
+ * التفاصيل أصلاً حين يكون FREE_MODE مفعَّلاً - الشاشة تعرض شارة بدلاً منها.)
  */
-export function getFreePlanInfo() {
+export function getFreePlanInfo(gender) {
+  const unlimited = gender === 'female';
   return {
     id: 'free',
     name: 'مجاني',
     duration: 'دائم',
-    features: [
-      'تصفح الملفات المطابقة',
-      'طلبات تعارف غير محدودة',
-      'رسائل غير محدودة',
-    ],
+    features: unlimited
+      ? [
+          'تصفح الملفات المطابقة',
+          'طلبات تعارف غير محدودة',
+          'رسائل غير محدودة',
+        ]
+      : [
+          'تصفح الملفات المطابقة',
+          'حتى 3 طلبات تعارف يومياً',
+          'حتى 10 رسائل يومياً في كل محادثة',
+        ],
   };
 }
 
 /**
- * الاشتراك الفعلي للمستخدم بعد مراعاة انتهاء الصلاحية.
+ * الاشتراك الفعلي للمستخدم بعد مراعاة انتهاء الصلاحية وإعداد FREE_MODE العام.
  * إذا كانت subscription_expires_at قد مضت → يُعامَل كـ free (بدون تعديل قاعدة البيانات).
- * @returns {{ storedTier, effectiveTier, expiresAt: Date|null, expired: boolean, plan }}
+ * إذا كان FREE_MODE مفعَّلاً (إعداد عام في app_settings) → يُعامَل الجميع كـ
+ * platinum بغضّ النظر عن الطبقة المخزَّنة فعلياً - دون أي تعديل لـ subscription_tier
+ * في القاعدة، حتى يعود كل مستخدم لطبقته الحقيقية تلقائياً عند إيقاف FREE_MODE لاحقاً.
+ * @returns {{ storedTier, effectiveTier, expiresAt: Date|null, expired: boolean, plan, freeMode: boolean }}
  */
 export async function getEffectiveSubscription(userId) {
+  const freeMode = await isFreeMode();
   const { rows } = await query(
     'SELECT subscription_tier, subscription_expires_at FROM users WHERE id = $1',
     [userId]
@@ -133,7 +147,8 @@ export async function getEffectiveSubscription(userId) {
 
   const expired =
     storedTier !== 'free' && expiresAt !== null && expiresAt.getTime() <= Date.now();
-  const effectiveTier = storedTier === 'free' || expired ? 'free' : storedTier;
+  let effectiveTier = storedTier === 'free' || expired ? 'free' : storedTier;
+  if (freeMode) effectiveTier = 'platinum';
 
   return {
     storedTier,
@@ -141,6 +156,7 @@ export async function getEffectiveSubscription(userId) {
     expiresAt,
     expired,
     plan: PLANS[effectiveTier],
+    freeMode,
   };
 }
 
