@@ -3,7 +3,7 @@ import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
 import { uploadPhoto, MAX_PHOTO_BYTES } from '../middleware/upload.js';
 import { processPhoto } from '../services/photoProcessing.js';
-import { putObject } from '../services/storage.js';
+import { putObject, storageBackend } from '../services/storage.js';
 import { GENDERS, RELIGIOUS_LEVELS } from '../services/relations.js';
 
 const router = Router();
@@ -91,17 +91,27 @@ router.put('/me', authRequired, async (req, res, next) => {
 });
 
 router.post('/me/photo', authRequired, (req, res, next) => {
+  const startedAt = Date.now();
   uploadPhoto(req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         const mb = Math.round(MAX_PHOTO_BYTES / (1024 * 1024));
+        console.warn(`[upload] user=${req.userId} فشل: تجاوز الحجم الأقصى (${mb}MB)`);
         return res
           .status(413)
           .json({ error: `حجم الصورة كبير جداً. الحد الأقصى ${mb} ميغابايت.` });
       }
+      console.warn(`[upload] user=${req.userId} فشل multer: ${err.message}`);
       return res.status(err.status || 400).json({ error: err.message });
     }
-    if (!req.file) return res.status(400).json({ error: 'يرجى اختيار صورة' });
+    if (!req.file) {
+      console.warn(`[upload] user=${req.userId} فشل: لا يوجد ملف في الطلب`);
+      return res.status(400).json({ error: 'يرجى اختيار صورة' });
+    }
+    const sizeKB = Math.round(req.file.size / 1024);
+    console.log(
+      `[upload] user=${req.userId} بدء المعالجة (${sizeKB}KB, ${req.file.mimetype}, تخزين=${storageBackend})`
+    );
     try {
       // مفتاح ثابت لكل مستخدم (photos/{userId}/...) - كل رفع جديد يستبدل
       // نفس الكائنين في R2/التخزين المحلي تلقائياً، فلا حاجة لتتبّع اسم ملف
@@ -115,8 +125,10 @@ router.post('/me/photo', authRequired, (req, res, next) => {
         'UPDATE profiles SET photo_path = $1, updated_at = now() WHERE user_id = $2',
         [String(Date.now()), req.userId]
       );
+      console.log(`[upload] user=${req.userId} نجح (${Date.now() - startedAt}ms)`);
       res.status(201).json({ ok: true });
     } catch (e) {
+      console.error(`[upload] user=${req.userId} فشل أثناء المعالجة/التخزين:`, e.message);
       next(e);
     }
   });

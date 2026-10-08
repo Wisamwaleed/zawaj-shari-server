@@ -31,9 +31,31 @@ export const config = {
   r2Bucket: cleanEnv(process.env.R2_BUCKET_NAME),
 };
 
-config.r2Enabled = Boolean(
-  config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey && config.r2Bucket
-);
+const r2Vars = {
+  R2_ACCOUNT_ID: config.r2AccountId,
+  R2_ACCESS_KEY_ID: config.r2AccessKeyId,
+  R2_SECRET_ACCESS_KEY: config.r2SecretAccessKey,
+  R2_BUCKET_NAME: config.r2Bucket,
+};
+const r2SetCount = Object.values(r2Vars).filter(Boolean).length;
+config.r2Enabled = r2SetCount === 4;
+
+// تحذير واضح عند الإقلاع إن كان بعض متغيرات R2 مضبوطاً والبعض الآخر لا -
+// وضع غامض قد يبدو كأن R2 يعمل بينما الصور تُكتب فعلياً على القرص المحلي
+// (الذي يُمسَح عند كل إعادة نشر على Railway).
+if (r2SetCount > 0 && r2SetCount < 4) {
+  const missing = Object.entries(r2Vars)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  console.warn(
+    `\n⚠️ تحذير: بعض متغيرات R2 مضبوط والبعض ناقص - التخزين سيعمل محلياً (غير دائم على Railway) حتى تُكمل الباقي.\n` +
+      `   المتغيرات الناقصة: ${missing.join(', ')}\n`
+  );
+} else if (r2SetCount === 0) {
+  console.log('ℹ️ R2 غير مضبوط - تخزين الصور محلياً (مناسب للتطوير فقط، غير دائم على Railway).');
+} else {
+  console.log('✅ R2 مضبوط بالكامل - تخزين الصور على Cloudflare R2.');
+}
 
 // فشل فوري وصريح بدل الإقلاع الصامت مع اتصال يفشل لاحقاً بـ ECONNREFUSED 127.0.0.1:5432.
 // بدون DATABASE_URL يحاول pg الاتصال بقيمه الافتراضية (localhost) - وهذا أصل هذا الخطأ تحديداً.
