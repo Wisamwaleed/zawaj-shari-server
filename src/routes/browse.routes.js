@@ -16,7 +16,7 @@ const router = Router();
  * قيد إجباري (Backend): يُعرض فقط الجنس المقابل لجنس المستخدم الحالي.
  * - إن لم يحدّد المستخدم جنسه بعد → تُعاد قائمة فارغة مع needsGender: true.
  * - فلتر الجنس القادم من العميل يُتجاهل تماماً.
- * فلاتر اختيارية مسموح بها: minAge, maxAge, city.
+ * فلاتر اختيارية مسموح بها: minAge, maxAge, city, nationality, q (بحث بالاسم).
  * لا تُرجع الصور - فقط has_photo وحالة طلب التعارف الحالية.
  */
 router.get('/', authRequired, async (req, res, next) => {
@@ -27,7 +27,7 @@ router.get('/', authRequired, async (req, res, next) => {
     }
     const targetGender = OPPOSITE_GENDER[myGender];
 
-    const { minAge, maxAge, city, religiousCommitment } = req.query;
+    const { minAge, maxAge, city, nationality, religiousCommitment, q } = req.query;
     const where = [
       'p.user_id <> $1',
       'p.gender = $2', // ← القيد الإجباري: الجنس المقابل فقط
@@ -52,9 +52,17 @@ router.get('/', authRequired, async (req, res, next) => {
       where.push(`p.city ILIKE $${i++}`);
       values.push(`%${String(city).trim()}%`);
     }
+    if (nationality) {
+      where.push(`p.nationality ILIKE $${i++}`);
+      values.push(`%${String(nationality).trim()}%`);
+    }
     if (religiousCommitment && RELIGIOUS_LEVELS.includes(String(religiousCommitment))) {
       where.push(`p.religious_commitment = $${i++}`);
       values.push(String(religiousCommitment));
+    }
+    if (q && String(q).trim()) {
+      where.push(`p.display_name ILIKE $${i++}`);
+      values.push(`%${String(q).trim()}%`);
     }
 
     const { rows } = await query(
