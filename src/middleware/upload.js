@@ -6,7 +6,7 @@ import { config } from '../config/index.js';
 export const uploadsPath = path.resolve(config.uploadDir);
 if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath, { recursive: true });
 
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsPath),
@@ -16,9 +16,10 @@ const storage = multer.diskStorage({
   },
 });
 
-// صور الكاميرا الحديثة (خصوصاً الهواتف عالية الدقة) قد تتجاوز 10 ميغابايت بسهولة
-// حتى بجودة JPEG عادية؛ 20 ميغابايت تستوعب الغالبية العظمى منها دون رفض غير مبرَّر.
-export const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+// حد مرتفع جداً عمداً: أي صورة هاتف حقيقية (حتى غير مضغوطة بدقة عالية جداً)
+// يجب ألا تُرفض بسبب الحجم - فقط سقف أمان بعيد يمنع إساءة استخدام فعلية
+// (رفع ملفات ضخمة عشوائية) دون التأثير على أي استخدام طبيعي.
+export const MAX_PHOTO_BYTES = 100 * 1024 * 1024;
 
 /** رفع صورة شخصية واحدة بحقل باسم "photo". */
 export const uploadPhoto = multer({
