@@ -11,12 +11,23 @@ import { platinumActiveSql, subscriberActiveSql } from '../services/subscription
 
 const router = Router();
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+
+/** page (1-based) + pageSize من query، بحدود معقولة تمنع طلب صفحة ضخمة دفعة واحدة. */
+function parsePagination(q) {
+  const page = Math.max(1, parseInt(q.page, 10) || 1);
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(q.pageSize, 10) || DEFAULT_PAGE_SIZE));
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
 /**
  * تصفح الملفات.
  * قيد إجباري (Backend): يُعرض فقط الجنس المقابل لجنس المستخدم الحالي.
  * - إن لم يحدّد المستخدم جنسه بعد → تُعاد قائمة فارغة مع needsGender: true.
  * - فلتر الجنس القادم من العميل يُتجاهل تماماً.
  * فلاتر اختيارية مسموح بها: minAge, maxAge, city, nationality, q (بحث بالاسم).
+ * صفحات: page (افتراضي 1) و pageSize (افتراضي 20، أقصى 50).
  * لا تُرجع الصور - فقط has_photo وحالة طلب التعارف الحالية.
  */
 router.get('/', authRequired, async (req, res, next) => {
@@ -26,6 +37,7 @@ router.get('/', authRequired, async (req, res, next) => {
       return res.json({ profiles: [], needsGender: true });
     }
     const targetGender = OPPOSITE_GENDER[myGender];
+    const { page, pageSize, offset } = parsePagination(req.query);
 
     const { minAge, maxAge, city, nationality, religiousCommitment, q } = req.query;
     const where = [
@@ -65,6 +77,8 @@ router.get('/', authRequired, async (req, res, next) => {
       values.push(`%${String(q).trim()}%`);
     }
 
+    const limitParam = i++;
+    const offsetParam = i++;
     const { rows } = await query(
       `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
               p.marital_status, p.education, p.bio, p.marriage_conditions,
@@ -82,10 +96,11 @@ router.get('/', authRequired, async (req, res, next) => {
        WHERE ${where.join(' AND ')}
        ORDER BY ${platinumActiveSql('u')} DESC,   -- أولوية ظهور مشتركي Platinum
                 p.updated_at DESC NULLS LAST
-       LIMIT 60`,
-      values
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...values, pageSize + 1, offset]
     );
-    res.json({ profiles: rows });
+    const hasMore = rows.length > pageSize;
+    res.json({ profiles: rows.slice(0, pageSize), page, pageSize, hasMore });
   } catch (err) {
     next(err);
   }
@@ -94,7 +109,7 @@ router.get('/', authRequired, async (req, res, next) => {
 /**
  * تبويب "الترشيحات": يعرض فقط المشتركين (Plus أو Platinum) من الجنس المقابل.
  * نفس قيود /browse (الجنس المقابل، استبعاد المحظورين) لكن بدون فلاتر اختيارية،
- * وبأولوية ظهور Platinum قبل Plus.
+ * وبأولوية ظهور Platinum قبل Plus. صفحات: page/pageSize كما في /browse.
  */
 router.get('/recommended', authRequired, async (req, res, next) => {
   try {
@@ -103,6 +118,7 @@ router.get('/recommended', authRequired, async (req, res, next) => {
       return res.json({ profiles: [], needsGender: true });
     }
     const targetGender = OPPOSITE_GENDER[myGender];
+    const { page, pageSize, offset } = parsePagination(req.query);
 
     const { rows } = await query(
       `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
@@ -128,10 +144,11 @@ router.get('/recommended', authRequired, async (req, res, next) => {
          )
        ORDER BY ${platinumActiveSql('u')} DESC,
                 p.updated_at DESC NULLS LAST
-       LIMIT 60`,
-      [req.userId, targetGender]
+       LIMIT $3 OFFSET $4`,
+      [req.userId, targetGender, pageSize + 1, offset]
     );
-    res.json({ profiles: rows });
+    const hasMore = rows.length > pageSize;
+    res.json({ profiles: rows.slice(0, pageSize), page, pageSize, hasMore });
   } catch (err) {
     next(err);
   }

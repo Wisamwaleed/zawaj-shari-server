@@ -18,10 +18,18 @@ const connectionString = config.databaseUrl.replace(
 export const pool = new Pool({
   connectionString,
   ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+  // إعدادات محافِظة تناسب خطة Neon المجانية/الصغيرة: عدد اتصالات متواضع
+  // (Neon يحدّ عدد الاتصالات المتزامنة لكل فرع قاعدة بيانات)، مع إغلاق
+  // الاتصالات الخاملة بسرعة حتى لا تُستهلَك الحصة من اتصالات خاملة بلا فائدة.
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
 });
 
+// خطأ في اتصال خامل (مثل انقطاع الشبكة من جهة Neon) لا يجب أن يُسقط العملية -
+// pg يتولّى استبدال الاتصال التالف تلقائياً من الـ pool عند الطلب القادم.
 pool.on('error', (err) => {
-  console.error('خطأ غير متوقع في اتصال قاعدة البيانات:', err);
+  console.error('خطأ غير متوقع في اتصال قاعدة البيانات (تم تجاهله، الـ pool يتعافى تلقائياً):', err.message);
 });
 
 /** غلاف مختصر لتنفيذ استعلام. */

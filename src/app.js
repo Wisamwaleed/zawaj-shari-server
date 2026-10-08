@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import { config } from './config/index.js';
+import { pool } from './db/pool.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { pledgeRequired } from './middleware/auth.js';
 import { MAX_PHOTO_BYTES } from './middleware/upload.js';
@@ -28,7 +30,36 @@ app.use(express.json());
 app.use(morgan('dev'));
 app.use(express.static(path.join(dir, '..', 'public')));
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+// حد عام يمنع الإغراق: 300 طلب/15 دقيقة لكل IP لكل مسارات /api.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'طلبات كثيرة جداً. حاول مرة أخرى بعد قليل.' },
+});
+// حد أشد خصوصاً على تسجيل الدخول/التسجيل - أهم مسارين لهجمات التخمين.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات كثيرة جداً. حاول مرة أخرى بعد 15 دقيقة.' },
+});
+app.use('/api', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// /health (وليس فقط /api/health) لسهولة إشارة إليه من أدوات المراقبة
+// (UptimeRobot وغيرها) - يفحص قاعدة البيانات فعلياً وليس فقط أن العملية حيّة.
+app.get(['/health', '/api/health'], async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, db: 'up' });
+  } catch (err) {
+    res.status(503).json({ ok: false, db: 'down', error: err.message });
+  }
+});
 
 // عامة بلا مصادقة عمداً: تحديث التطبيق وصفحة التنزيل يجب أن يعملا حتى قبل تسجيل الدخول.
 app.use('/api/app-version', appVersionRoutes);

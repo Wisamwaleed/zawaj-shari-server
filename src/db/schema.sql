@@ -18,6 +18,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAU
 -- بعد تجاوز هذا التاريخ يُعامَل المستخدم كأنه على free في كل الفحوصات.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ;
 
+-- يخدم platinumActiveSql/subscriberActiveSql المستخدَمة في كل استعلامات
+-- التصفح والترشيحات (فلترة + ترتيب حسب حالة الاشتراك).
+CREATE INDEX IF NOT EXISTS idx_users_subscription ON users(subscription_tier, subscription_expires_at);
+
 -- رمز دعوة فريد لكل مستخدم (يُولَّد عند التسجيل)، ومن دعاه إن سجّل عبر كود أحدهم.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES users(id);
@@ -33,12 +37,20 @@ CREATE TABLE IF NOT EXISTS profiles (
   education            TEXT,
   bio                 TEXT,
   marriage_conditions TEXT,
-  photo_path          TEXT,          -- اسم الملف داخل مجلد uploads
+  -- لم يعد مساراً لملف محلي: مجرّد رقم إصدار (timestamp) يُستخدم كعلامة
+  -- "توجد صورة" (NOT NULL) ولكسر التخزين المؤقت في العميل بعد كل رفع جديد.
+  -- الصورتان الفعليتان مخزَّنتان في R2 (أو القرص محلياً بدون R2) بمفتاح ثابت:
+  -- photos/{user_id}/original.webp و photos/{user_id}/blurred.webp
+  photo_path          TEXT,
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- مستوى الالتزام الديني (اختياري): ملتزم جداً | ملتزم | متوسط الالتزام
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS religious_commitment TEXT;
+
+-- فهارس تخدم فلاتر التصفح الأساسية (الجنس دائماً في WHERE، والعمر الأكثر استخداماً).
+CREATE INDEX IF NOT EXISTS idx_profiles_gender_age ON profiles(gender, age);
+CREATE INDEX IF NOT EXISTS idx_profiles_religious ON profiles(religious_commitment);
 
 CREATE TABLE IF NOT EXISTS interest_requests (
   id          SERIAL PRIMARY KEY,
@@ -70,6 +82,10 @@ CREATE TABLE IF NOT EXISTS blocks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (blocker_id, blocked_id)
 );
+
+-- كل فحص حظر هنا يبحث بالاتجاهين (blocker أو blocked) - المفتاح الأساسي
+-- يخدم جهة blocker_id فقط، فهرس إضافي على blocked_id يخدم الجهة الأخرى.
+CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 
 CREATE TABLE IF NOT EXISTS reports (
   id          SERIAL PRIMARY KEY,

@@ -26,7 +26,8 @@ router.get('/conversations', authRequired, async (req, res, next) => {
          ORDER BY m.created_at DESC LIMIT 1
        ) last ON true
        WHERE r.status = 'accepted' AND (r.sender_id = $1 OR r.receiver_id = $1)
-       ORDER BY COALESCE(last.created_at, r.updated_at) DESC`,
+       ORDER BY COALESCE(last.created_at, r.updated_at) DESC
+       LIMIT 100`,
       [req.userId]
     );
     res.json({ conversations: rows });
@@ -35,14 +36,19 @@ router.get('/conversations', authRequired, async (req, res, next) => {
   }
 });
 
-/** رسائل محادثة معيّنة. */
+/**
+ * رسائل محادثة معيّنة. أحدث 50 افتراضياً (أقصى 100).
+ * beforeId: لجلب رسائل أقدم من رسالة معيّنة ("تحميل المزيد" عند التمرير للأعلى).
+ */
 router.get('/:requestId', authRequired, async (req, res, next) => {
   try {
-    const messages = await listMessages({
+    const result = await listMessages({
       requestId: Number(req.params.requestId),
       userId: req.userId,
+      beforeId: req.query.beforeId,
+      limit: req.query.limit,
     });
-    res.json({ messages });
+    res.json(result);
   } catch (err) {
     next(err);
   }

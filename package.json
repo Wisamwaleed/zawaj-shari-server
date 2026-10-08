@@ -9,13 +9,17 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js",
-    "set-setting": "node src/db/set-setting.js"
+    "set-setting": "node src/db/set-setting.js",
+    "migrate-photos-to-r2": "node src/db/migrate-photos-to-r2.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "@sentry/node": "^11.5.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.7.1",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",

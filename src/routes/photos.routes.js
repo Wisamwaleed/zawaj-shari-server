@@ -1,10 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import sharp from 'sharp';
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
-import { uploadsPath } from '../middleware/upload.js';
+import { getObjectBuffer } from '../services/storage.js';
 import { areConnected, isBlockedBetween } from '../services/relations.js';
 import { signPhotoToken, verifyPhotoToken } from '../services/photoAccess.js';
 
@@ -14,7 +11,7 @@ const router = Router();
  * يُصدر توكناً قصير العمر (10 دقائق) لعرض صورة مستخدم واحد مرة واحدة.
  * يُحدَّد وضع العرض الآن (لحظة الإصدار) حسب العلاقة الفعلية:
  * - صاحب الصورة نفسه، أو طرف مقبول معه طلب تعارف → full (الصورة الأصلية).
- * - غير ذلك (لا علاقة بعد) → blurred (نسخة ضبابية تُصنع في السيرفر، لا تُرسل الأصل أبداً).
+ * - غير ذلك (لا علاقة بعد) → blurred (نسخة ضبابية صُنعت في السيرفر عند الرفع، لا تُرسل الأصل أبداً).
  * - محظور بين الطرفين → 403 (لا يُصدَر توكن إطلاقاً).
  */
 router.get('/:userId/token', authRequired, async (req, res, next) => {
@@ -48,7 +45,8 @@ router.get('/:userId/token', authRequired, async (req, res, next) => {
  * يقدّم بايتات الصورة نفسها بالاعتماد فقط على توكن قصير العمر (pt) وليس
  * جلسة المستخدم - حتى لا يبقى رابط <Image> صالحاً لمدة الجلسة كاملة (7 أيام)
  * لو نُسخ. يُعاد فحص الحظر لحظة التسليم أيضاً (دفاع إضافي).
- * لا تُخزَّن هذه الاستجابة أبداً (Cache-Control: no-store).
+ * النسختان (original/blurred) جاهزتان مسبقاً منذ الرفع (R2 أو القرص محلياً) -
+ * لا معالجة صور هنا إطلاقاً، فقط جلب وإرسال. لا تُخزَّن هذه الاستجابة أبداً.
  */
 router.get('/image', async (req, res, next) => {
   try {
@@ -68,26 +66,14 @@ router.get('/image', async (req, res, next) => {
       'SELECT photo_path FROM profiles WHERE user_id = $1',
       [targetId]
     );
-    const photo = rows[0]?.photo_path;
-    if (!photo) return res.status(404).json({ error: 'لا توجد صورة' });
+    if (!rows[0]?.photo_path) return res.status(404).json({ error: 'لا توجد صورة' });
 
-    const abs = path.join(uploadsPath, photo);
-    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'الملف مفقود' });
+    const key = `photos/${targetId}/${mode === 'full' ? 'original' : 'blurred'}.webp`;
+    const buf = await getObjectBuffer(key);
+    if (!buf) return res.status(404).json({ error: 'الملف مفقود' });
 
     res.set('Cache-Control', 'no-store, private');
-
-    if (mode === 'full') {
-      return res.sendFile(abs);
-    }
-
-    // وضع blurred: الأصل لا يغادر السيرفر أبداً - تمويه حقيقي بالبكسلة ثم
-    // تكبير خفيف، يُصنع من الملف الأصلي في الذاكرة ولا يُحفظ على القرص.
-    const blurred = await sharp(abs)
-      .resize(24, 24, { fit: 'cover' })
-      .blur(3)
-      .jpeg({ quality: 60 })
-      .toBuffer();
-    res.type('image/jpeg').send(blurred);
+    res.type('image/webp').send(buf);
   } catch (err) {
     next(err);
   }

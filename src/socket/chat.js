@@ -2,6 +2,7 @@ import { verifyToken } from '../utils/jwt.js';
 import { query } from '../db/pool.js';
 import { createMessage } from '../services/messages.js';
 import { getAcceptedRequestForUser } from '../services/relations.js';
+import { captureException } from '../sentry.js';
 
 /**
  * دردشة فورية. كل مستخدم ينضم لغرفته الخاصة `user:<id>`،
@@ -32,13 +33,18 @@ export function initChat(io) {
 
     // الانضمام لغرفة محادثة بعد التحقق من الصلاحية.
     socket.on('chat:join', async (requestId, cb) => {
-      const request = await getAcceptedRequestForUser(
-        Number(requestId),
-        socket.userId
-      );
-      if (!request) return cb?.({ error: 'غير مصرح بهذه المحادثة' });
-      socket.join(`req:${requestId}`);
-      cb?.({ ok: true });
+      try {
+        const request = await getAcceptedRequestForUser(
+          Number(requestId),
+          socket.userId
+        );
+        if (!request) return cb?.({ error: 'غير مصرح بهذه المحادثة' });
+        socket.join(`req:${requestId}`);
+        cb?.({ ok: true });
+      } catch (err) {
+        captureException(err, { event: 'chat:join', userId: socket.userId });
+        cb?.({ error: 'تعذّر الانضمام للمحادثة' });
+      }
     });
 
     socket.on('chat:leave', (requestId) => {
@@ -60,6 +66,9 @@ export function initChat(io) {
         });
         cb?.({ ok: true, message });
       } catch (err) {
+        if (!err.status || err.status >= 500) {
+          captureException(err, { event: 'chat:message', userId: socket.userId });
+        }
         cb?.({ error: err.message || 'تعذّر إرسال الرسالة', code: err.code });
       }
     });

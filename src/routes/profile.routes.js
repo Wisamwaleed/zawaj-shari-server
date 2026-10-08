@@ -1,9 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
-import { uploadPhoto, uploadsPath, MAX_PHOTO_BYTES } from '../middleware/upload.js';
+import { uploadPhoto, MAX_PHOTO_BYTES } from '../middleware/upload.js';
+import { processPhoto } from '../services/photoProcessing.js';
+import { putObject } from '../services/storage.js';
 import { GENDERS, RELIGIOUS_LEVELS } from '../services/relations.js';
 
 const router = Router();
@@ -103,18 +103,18 @@ router.post('/me/photo', authRequired, (req, res, next) => {
     }
     if (!req.file) return res.status(400).json({ error: 'يرجى اختيار صورة' });
     try {
-      const prev = await query(
-        'SELECT photo_path FROM profiles WHERE user_id = $1',
-        [req.userId]
-      );
+      // مفتاح ثابت لكل مستخدم (photos/{userId}/...) - كل رفع جديد يستبدل
+      // نفس الكائنين في R2/التخزين المحلي تلقائياً، فلا حاجة لتتبّع اسم ملف
+      // قديم أو حذفه يدوياً كما كان سابقاً.
+      const { original, blurred } = await processPhoto(req.file.buffer);
+      await Promise.all([
+        putObject(`photos/${req.userId}/original.webp`, original, 'image/webp'),
+        putObject(`photos/${req.userId}/blurred.webp`, blurred, 'image/webp'),
+      ]);
       await query(
         'UPDATE profiles SET photo_path = $1, updated_at = now() WHERE user_id = $2',
-        [req.file.filename, req.userId]
+        [String(Date.now()), req.userId]
       );
-      const old = prev.rows[0]?.photo_path;
-      if (old && old !== req.file.filename) {
-        fs.promises.unlink(path.join(uploadsPath, old)).catch(() => {});
-      }
       res.status(201).json({ ok: true });
     } catch (e) {
       next(e);

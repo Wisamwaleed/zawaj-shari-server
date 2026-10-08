@@ -43,14 +43,37 @@ export async function createMessage({ requestId, senderId, body }) {
   return { message: rows[0], recipientId };
 }
 
-/** جلب رسائل محادثة (بعد التحقق من مشاركة المستخدم فيها). */
-export async function listMessages({ requestId, userId }) {
+const MESSAGES_DEFAULT_LIMIT = 50;
+const MESSAGES_MAX_LIMIT = 100;
+
+/**
+ * جلب رسائل محادثة (بعد التحقق من مشاركة المستخدم فيها)، من الأحدث فالأقدم
+ * داخلياً ثم مُعادة بترتيب زمني تصاعدي للعرض المباشر في الشاشة.
+ * beforeId (اختياري): لجلب رسائل أقدم من رسالة معيّنة ("تحميل المزيد" للأعلى).
+ * @returns {{ messages: object[], hasMore: boolean }}
+ */
+export async function listMessages({ requestId, userId, beforeId, limit }) {
   const request = await getAcceptedRequestForUser(requestId, userId);
   if (!request) throw httpError(403, 'لا توجد محادثة مسموح بها');
+
+  const take = Math.min(MESSAGES_MAX_LIMIT, Math.max(1, parseInt(limit, 10) || MESSAGES_DEFAULT_LIMIT));
+  const params = [requestId];
+  let cursorClause = '';
+  if (beforeId) {
+    params.push(Number(beforeId));
+    cursorClause = `AND id < $${params.length}`;
+  }
+  params.push(take + 1);
+
   const { rows } = await query(
     `SELECT id, request_id, sender_id, body, created_at
-     FROM messages WHERE request_id = $1 ORDER BY created_at ASC`,
-    [requestId]
+     FROM messages
+     WHERE request_id = $1 ${cursorClause}
+     ORDER BY id DESC
+     LIMIT $${params.length}`,
+    params
   );
-  return rows;
+  const hasMore = rows.length > take;
+  const page = rows.slice(0, take).reverse(); // تصاعدي للعرض
+  return { messages: page, hasMore };
 }
