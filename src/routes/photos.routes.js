@@ -1,18 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import sharp from 'sharp';
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
 import { uploadsPath } from '../middleware/upload.js';
 import { areConnected, isBlockedBetween } from '../services/relations.js';
+import { signPhotoToken, verifyPhotoToken } from '../services/photoAccess.js';
 
 const router = Router();
 
 /**
- * صورة المستخدم: يراها صاحبها فقط، أو طرف قَبِل/قُبِل معه طلب تعارف.
- * خلاف ذلك: 403 (الصورة مخفية).
+ * يُصدر توكناً قصير العمر (10 دقائق) لعرض صورة مستخدم واحد مرة واحدة.
+ * يُحدَّد وضع العرض الآن (لحظة الإصدار) حسب العلاقة الفعلية:
+ * - صاحب الصورة نفسه، أو طرف مقبول معه طلب تعارف → full (الصورة الأصلية).
+ * - غير ذلك (لا علاقة بعد) → blurred (نسخة ضبابية تُصنع في السيرفر، لا تُرسل الأصل أبداً).
+ * - محظور بين الطرفين → 403 (لا يُصدَر توكن إطلاقاً).
  */
-router.get('/:userId', authRequired, async (req, res, next) => {
+router.get('/:userId/token', authRequired, async (req, res, next) => {
   try {
     const targetId = Number(req.params.userId);
     if (!targetId) return res.status(400).json({ error: 'معرّف غير صالح' });
@@ -21,21 +26,68 @@ router.get('/:userId', authRequired, async (req, res, next) => {
       'SELECT photo_path FROM profiles WHERE user_id = $1',
       [targetId]
     );
+    if (!rows[0]?.photo_path) return res.status(404).json({ error: 'لا توجد صورة' });
+
+    let mode;
+    if (targetId === req.userId) {
+      mode = 'full';
+    } else {
+      if (await isBlockedBetween(req.userId, targetId))
+        return res.status(403).json({ error: 'غير متاح' });
+      mode = (await areConnected(req.userId, targetId)) ? 'full' : 'blurred';
+    }
+
+    const token = signPhotoToken({ viewerId: req.userId, targetId, mode });
+    res.json({ token, mode, expiresInSeconds: 600 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * يقدّم بايتات الصورة نفسها بالاعتماد فقط على توكن قصير العمر (pt) وليس
+ * جلسة المستخدم - حتى لا يبقى رابط <Image> صالحاً لمدة الجلسة كاملة (7 أيام)
+ * لو نُسخ. يُعاد فحص الحظر لحظة التسليم أيضاً (دفاع إضافي).
+ * لا تُخزَّن هذه الاستجابة أبداً (Cache-Control: no-store).
+ */
+router.get('/image', async (req, res, next) => {
+  try {
+    let access;
+    try {
+      access = verifyPhotoToken(String(req.query.pt || ''));
+    } catch {
+      return res.status(401).json({ error: 'رابط الصورة منتهي أو غير صالح' });
+    }
+    const { viewerId, targetId, mode } = access;
+
+    if (viewerId !== targetId && (await isBlockedBetween(viewerId, targetId))) {
+      return res.status(403).json({ error: 'غير متاح' });
+    }
+
+    const { rows } = await query(
+      'SELECT photo_path FROM profiles WHERE user_id = $1',
+      [targetId]
+    );
     const photo = rows[0]?.photo_path;
     if (!photo) return res.status(404).json({ error: 'لا توجد صورة' });
 
-    if (targetId !== req.userId) {
-      if (await isBlockedBetween(req.userId, targetId))
-        return res.status(403).json({ error: 'غير متاح' });
-      if (!(await areConnected(req.userId, targetId)))
-        return res
-          .status(403)
-          .json({ error: 'الصورة مخفية حتى قبول طلب التعارف' });
-    }
-
     const abs = path.join(uploadsPath, photo);
     if (!fs.existsSync(abs)) return res.status(404).json({ error: 'الملف مفقود' });
-    res.sendFile(abs);
+
+    res.set('Cache-Control', 'no-store, private');
+
+    if (mode === 'full') {
+      return res.sendFile(abs);
+    }
+
+    // وضع blurred: الأصل لا يغادر السيرفر أبداً - تمويه حقيقي بالبكسلة ثم
+    // تكبير خفيف، يُصنع من الملف الأصلي في الذاكرة ولا يُحفظ على القرص.
+    const blurred = await sharp(abs)
+      .resize(24, 24, { fit: 'cover' })
+      .blur(3)
+      .jpeg({ quality: 60 })
+      .toBuffer();
+    res.type('image/jpeg').send(blurred);
   } catch (err) {
     next(err);
   }
