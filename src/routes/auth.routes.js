@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db/pool.js';
 import { signToken } from '../utils/jwt.js';
 import { authRequired } from '../middleware/auth.js';
+import { generateReferralCode, applyReferralCode, referralStats } from '../services/referrals.js';
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,12 +22,16 @@ router.post('/register', async (req, res, next) => {
       return res.status(409).json({ error: 'هذا البريد مسجّل مسبقاً' });
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const referralCode = String(req.body?.referralCode || '').trim();
+    const myReferralCode = await generateReferralCode();
     const { rows } = await query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
-      [email, passwordHash]
+      `INSERT INTO users (email, password_hash, referral_code)
+       VALUES ($1, $2, $3) RETURNING id, email`,
+      [email, passwordHash, myReferralCode]
     );
     const user = rows[0];
     await query('INSERT INTO profiles (user_id) VALUES ($1)', [user.id]);
+    if (referralCode) await applyReferralCode(referralCode, user.id);
 
     res.status(201).json({ token: signToken(user.id), user });
   } catch (err) {
@@ -60,6 +65,7 @@ router.get('/me', authRequired, async (req, res, next) => {
               u.pledge_accepted_at,
               u.subscription_tier,
               u.subscription_expires_at,
+              u.referral_code,
               (u.subscription_tier <> 'free'
                 AND (u.subscription_expires_at IS NULL
                      OR u.subscription_expires_at > now())) AS subscription_active,
@@ -77,7 +83,17 @@ router.get('/me', authRequired, async (req, res, next) => {
        WHERE u.id = $1`,
       [req.userId]
     );
-    res.json({ user: rows[0] });
+    const user = rows[0];
+    if (user && !user.referral_code) {
+      // تغطية حسابات أُنشئت قبل إضافة نظام الدعوات.
+      user.referral_code = await generateReferralCode();
+      await query('UPDATE users SET referral_code = $1 WHERE id = $2', [
+        user.referral_code,
+        req.userId,
+      ]);
+    }
+    const stats = user ? await referralStats(req.userId) : null;
+    res.json({ user: user && stats ? { ...user, ...stats } : user });
   } catch (err) {
     next(err);
   }

@@ -18,6 +18,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAU
 -- بعد تجاوز هذا التاريخ يُعامَل المستخدم كأنه على free في كل الفحوصات.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ;
 
+-- رمز دعوة فريد لكل مستخدم (يُولَّد عند التسجيل)، ومن دعاه إن سجّل عبر كود أحدهم.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES users(id);
+
 CREATE TABLE IF NOT EXISTS profiles (
   user_id             INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   display_name        TEXT,
@@ -91,3 +95,14 @@ CREATE TABLE IF NOT EXISTS profile_visits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_visits_visited ON profile_visits(visited_id, created_at DESC);
+
+-- مكافآت الدعوة: صف واحد لكل "مدعوّ" (referred_id UNIQUE) يمنع مكافأة الداعي أكثر
+-- من مرة عن نفس الشخص، حتى لو أُعيد تشغيل منطق المكافأة لاحقاً.
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id          SERIAL PRIMARY KEY,
+  referrer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  referred_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reward_days INTEGER NOT NULL DEFAULT 7,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (referred_id)
+);

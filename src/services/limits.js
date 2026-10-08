@@ -11,8 +11,10 @@ export const PLANS = {
   free: {
     id: 'free',
     name: 'مجاني',
-    dailyRequests: 3,
-    dailyMessagesPerConversation: 10,
+    // عرض ترويجي حالي: الطلبات والرسائل غير محدودة للجميع مجاناً.
+    // مزايا Platinum (الزوّار/الأولوية/الشارة) تبقى حصرية للمشتركين أو عبر مكافأة الدعوة.
+    dailyRequests: -1,
+    dailyMessagesPerConversation: -1,
     hasVisitorsFeature: false,
   },
   plus: {
@@ -99,23 +101,16 @@ export const PAID_OFFERS_BY_ID = Object.fromEntries(
  * الطلبات والرسائل (راجع getEffectiveLimits)، بينما تبقى مزايا Platinum
  * (الزوّار/الأولوية/الشارة) تتطلب اشتراكاً فعلياً للجميع.
  */
-export function getFreePlanInfo(gender) {
-  const unlimited = gender === 'female';
+export function getFreePlanInfo() {
   return {
     id: 'free',
     name: 'مجاني',
     duration: 'دائم',
-    features: unlimited
-      ? [
-          'تصفح الملفات المطابقة',
-          'طلبات تعارف غير محدودة',
-          'رسائل غير محدودة',
-        ]
-      : [
-          'تصفح الملفات المطابقة',
-          'حتى 3 طلبات تعارف يومياً',
-          'حتى 10 رسائل يومياً في كل محادثة',
-        ],
+    features: [
+      'تصفح الملفات المطابقة',
+      'طلبات تعارف غير محدودة',
+      'رسائل غير محدودة',
+    ],
   };
 }
 
