@@ -9,6 +9,14 @@ export const OPPOSITE_GENDER = { male: 'female', female: 'male' };
 /** القيم المسموح بها لحقل مستوى الالتزام الديني (اختياري). */
 export const RELIGIOUS_LEVELS = ['ملتزم جداً', 'ملتزم', 'متوسط الالتزام'];
 
+/** القيم المسموح بها لحقل لون البشرة (اختياري). */
+export const SKIN_TONES = ['أبيض', 'حنطي فاتح', 'حنطي', 'أسمر فاتح', 'أسمر'];
+
+export const HEIGHT_MIN = 140;
+export const HEIGHT_MAX = 210;
+export const WEIGHT_MIN = 40;
+export const WEIGHT_MAX = 150;
+
 /** جلب جنس مستخدم ('male' | 'female' | null إذا لم يُحدَّد). */
 export async function getUserGender(userId) {
   const { rows } = await query(

@@ -6,6 +6,7 @@ import {
   getUserGender,
   OPPOSITE_GENDER,
   RELIGIOUS_LEVELS,
+  SKIN_TONES,
 } from '../services/relations.js';
 import { platinumActiveSql, subscriberActiveSql } from '../services/subscriptionSql.js';
 
@@ -39,7 +40,19 @@ router.get('/', authRequired, async (req, res, next) => {
     const targetGender = OPPOSITE_GENDER[myGender];
     const { page, pageSize, offset } = parsePagination(req.query);
 
-    const { minAge, maxAge, city, nationality, religiousCommitment, q } = req.query;
+    const {
+      minAge,
+      maxAge,
+      city,
+      nationality,
+      religiousCommitment,
+      minHeight,
+      maxHeight,
+      minWeight,
+      maxWeight,
+      skinTones,
+      q,
+    } = req.query;
     const where = [
       'p.user_id <> $1',
       'p.gender = $2', // ← القيد الإجباري: الجنس المقابل فقط
@@ -72,6 +85,32 @@ router.get('/', authRequired, async (req, res, next) => {
       where.push(`p.religious_commitment = $${i++}`);
       values.push(String(religiousCommitment));
     }
+    if (minHeight) {
+      where.push(`p.height_cm >= $${i++}`);
+      values.push(parseInt(minHeight, 10));
+    }
+    if (maxHeight) {
+      where.push(`p.height_cm <= $${i++}`);
+      values.push(parseInt(maxHeight, 10));
+    }
+    if (minWeight) {
+      where.push(`p.weight_kg >= $${i++}`);
+      values.push(parseInt(minWeight, 10));
+    }
+    if (maxWeight) {
+      where.push(`p.weight_kg <= $${i++}`);
+      values.push(parseInt(maxWeight, 10));
+    }
+    if (skinTones) {
+      const tones = String(skinTones)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => SKIN_TONES.includes(s));
+      if (tones.length) {
+        where.push(`p.skin_tone = ANY($${i++}::text[])`);
+        values.push(tones);
+      }
+    }
     if (q && String(q).trim()) {
       where.push(`p.display_name ILIKE $${i++}`);
       values.push(`%${String(q).trim()}%`);
@@ -82,7 +121,7 @@ router.get('/', authRequired, async (req, res, next) => {
     const { rows } = await query(
       `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
               p.marital_status, p.education, p.bio, p.marriage_conditions,
-              p.religious_commitment,
+              p.religious_commitment, p.height_cm, p.weight_kg, p.skin_tone,
               (p.photo_path IS NOT NULL) AS has_photo,
               ${platinumActiveSql('u')} AS is_platinum,
               r.id     AS request_id,
@@ -123,7 +162,7 @@ router.get('/recommended', authRequired, async (req, res, next) => {
     const { rows } = await query(
       `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
               p.marital_status, p.education, p.bio, p.marriage_conditions,
-              p.religious_commitment,
+              p.religious_commitment, p.height_cm, p.weight_kg, p.skin_tone,
               (p.photo_path IS NOT NULL) AS has_photo,
               ${platinumActiveSql('u')} AS is_platinum,
               r.id     AS request_id,
@@ -172,7 +211,7 @@ router.get('/:userId', authRequired, async (req, res, next) => {
     const { rows } = await query(
       `SELECT p.user_id, p.display_name, p.gender, p.age, p.city, p.nationality,
               p.marital_status, p.education, p.bio, p.marriage_conditions,
-              p.religious_commitment,
+              p.religious_commitment, p.height_cm, p.weight_kg, p.skin_tone,
               (p.photo_path IS NOT NULL) AS has_photo,
               ${platinumActiveSql('u')} AS is_platinum,
               r.id AS request_id, r.status AS request_status,

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { webColors as c } from '../constants/theme.js';
 
 const router = Router();
 
@@ -14,18 +15,18 @@ function page(title, bodyHtml) {
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh;
-    background: #0B3D26;
-    color: #f2e9d0;
+    background: ${c.bg};
+    color: ${c.text};
     font-family: -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
     padding: 32px 16px 64px;
   }
   .wrap { max-width: 640px; margin: 0 auto; }
-  h1 { font-size: 24px; color: #D4AF37; margin: 0 0 24px; text-align: center; }
-  h2 { font-size: 17px; color: #D4AF37; margin: 28px 0 8px; }
-  p, li { font-size: 14.5px; line-height: 1.9; color: #e6dcc0; }
+  h1 { font-size: 24px; color: ${c.gold}; margin: 0 0 24px; text-align: center; }
+  h2 { font-size: 17px; color: ${c.gold}; margin: 28px 0 8px; }
+  p, li { font-size: 14.5px; line-height: 1.9; color: ${c.text}; }
   ul { padding-inline-start: 20px; margin: 8px 0; }
-  .updated { text-align: center; color: #93a69c; font-size: 12px; margin-bottom: 8px; }
-  a { color: #D4AF37; }
+  .updated { text-align: center; color: ${c.textSoft}; font-size: 12px; margin-bottom: 8px; }
+  a { color: ${c.gold}; }
   .back { display: block; text-align: center; margin-top: 36px; }
 </style>
 </head>

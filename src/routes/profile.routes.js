@@ -4,7 +4,15 @@ import { authRequired } from '../middleware/auth.js';
 import { uploadPhoto, MAX_PHOTO_BYTES } from '../middleware/upload.js';
 import { processPhoto } from '../services/photoProcessing.js';
 import { putObject, storageBackend } from '../services/storage.js';
-import { GENDERS, RELIGIOUS_LEVELS } from '../services/relations.js';
+import {
+  GENDERS,
+  RELIGIOUS_LEVELS,
+  SKIN_TONES,
+  HEIGHT_MIN,
+  HEIGHT_MAX,
+  WEIGHT_MIN,
+  WEIGHT_MAX,
+} from '../services/relations.js';
 
 const router = Router();
 
@@ -20,6 +28,9 @@ const EDITABLE = [
   'bio',
   'marriage_conditions',
   'religious_commitment',
+  'height_cm',
+  'weight_kg',
+  'skin_tone',
 ];
 
 router.get('/me', authRequired, async (req, res, next) => {
@@ -27,7 +38,7 @@ router.get('/me', authRequired, async (req, res, next) => {
     const { rows } = await query(
       `SELECT user_id, display_name, gender, age, city, nationality,
               marital_status, education, bio, marriage_conditions,
-              religious_commitment,
+              religious_commitment, height_cm, weight_kg, skin_tone,
               (photo_path IS NOT NULL) AS has_photo, updated_at
        FROM profiles WHERE user_id = $1`,
       [req.userId]
@@ -64,6 +75,25 @@ router.put('/me', authRequired, async (req, res, next) => {
             .status(400)
             .json({ error: 'قيمة مستوى الالتزام الديني غير صالحة' });
         value = value || null; // فارغ = مسح الحقل (اختياري)
+      } else if (field === 'skin_tone') {
+        value = String(value || '').trim();
+        if (value && !SKIN_TONES.includes(value))
+          return res.status(400).json({ error: 'قيمة لون البشرة غير صالحة' });
+        value = value || null;
+      } else if (field === 'height_cm' || field === 'weight_kg') {
+        if (value === null || value === '') {
+          value = null;
+        } else {
+          value = parseInt(value, 10);
+          const [min, max] = field === 'height_cm' ? [HEIGHT_MIN, HEIGHT_MAX] : [WEIGHT_MIN, WEIGHT_MAX];
+          if (Number.isNaN(value) || value < min || value > max)
+            return res.status(400).json({
+              error:
+                field === 'height_cm'
+                  ? `الطول يجب أن يكون بين ${HEIGHT_MIN} و ${HEIGHT_MAX} سم`
+                  : `الوزن يجب أن يكون بين ${WEIGHT_MIN} و ${WEIGHT_MAX} كغ`,
+            });
+        }
       } else if (typeof value === 'string') {
         value = value.trim().slice(0, 2000) || null;
       }
@@ -80,7 +110,7 @@ router.put('/me', authRequired, async (req, res, next) => {
        WHERE user_id = $${i}
        RETURNING user_id, display_name, gender, age, city, nationality,
                  marital_status, education, bio, marriage_conditions,
-                 religious_commitment,
+                 religious_commitment, height_cm, weight_kg, skin_tone,
                  (photo_path IS NOT NULL) AS has_photo, updated_at`,
       values
     );

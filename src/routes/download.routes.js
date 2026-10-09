@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getSettings } from '../services/settings.js';
+import { webColors as c } from '../constants/theme.js';
 
 const router = Router();
 
@@ -31,16 +32,16 @@ router.get('/', async (req, res, next) => {
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh;
-    background: #0B3D26;
-    color: #f2e9d0;
+    background: ${c.bg};
+    color: ${c.text};
     font-family: -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
     display: flex; align-items: center; justify-content: center;
     padding: 32px 16px;
   }
   .card {
     width: 100%; max-width: 440px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(212,175,55,0.35);
+    background: ${c.surface};
+    border: 1px solid ${c.border};
     border-radius: 24px;
     padding: 32px 24px;
     text-align: center;
@@ -49,27 +50,27 @@ router.get('/', async (req, res, next) => {
     width: 96px; height: 96px; border-radius: 24px;
     margin-bottom: 16px;
   }
-  h1 { font-size: 22px; margin: 0 0 8px; color: #D4AF37; }
-  p.desc { font-size: 14px; color: #cfd8d2; line-height: 1.7; margin: 0 0 24px; }
+  h1 { font-size: 22px; margin: 0 0 8px; color: ${c.gold}; }
+  p.desc { font-size: 14px; color: ${c.textSoft}; line-height: 1.7; margin: 0 0 24px; }
   .btn {
     display: inline-block; width: 100%;
-    background: #D4AF37; color: #0B3D26;
+    background: ${c.gold}; color: ${c.inkOnGold};
     font-weight: 800; font-size: 16px;
     padding: 16px; border-radius: 999px;
     text-decoration: none;
     margin-bottom: 8px;
   }
   .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
-  .note { font-size: 12px; color: #93a69c; margin-bottom: 24px; }
+  .note { font-size: 12px; color: ${c.textSoft}; margin-bottom: 24px; }
   .changelog {
-    text-align: right; background: rgba(0,0,0,0.2);
+    text-align: right; background: rgba(0,0,0,0.3);
     border-radius: 12px; padding: 14px 16px; margin-bottom: 24px;
     font-size: 13px; line-height: 1.8; white-space: pre-wrap;
   }
-  .steps { text-align: right; font-size: 13px; line-height: 2; color: #e6dcc0; }
-  .steps b { color: #D4AF37; }
-  .legal { margin-top: 20px; font-size: 12px; color: #93a69c; }
-  .legal a { color: #93a69c; text-decoration: underline; }
+  .steps { text-align: right; font-size: 13px; line-height: 2; color: ${c.text}; }
+  .steps b { color: ${c.gold}; }
+  .legal { margin-top: 20px; font-size: 12px; color: ${c.textSoft}; }
+  .legal a { color: ${c.textSoft}; text-decoration: underline; }
 </style>
 </head>
 <body>

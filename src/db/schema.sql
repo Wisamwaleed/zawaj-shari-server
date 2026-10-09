@@ -67,9 +67,24 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- مستوى الالتزام الديني (اختياري): ملتزم جداً | ملتزم | متوسط الالتزام
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS religious_commitment TEXT;
 
+-- حقول اختيارية إضافية: الطول (سم)، الوزن (كغ)، لون البشرة (نص ثابت من قائمة).
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS height_cm INTEGER;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS weight_kg INTEGER;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS skin_tone TEXT;
+
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_height_cm_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_height_cm_check
+  CHECK (height_cm IS NULL OR (height_cm BETWEEN 140 AND 210));
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_weight_kg_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_weight_kg_check
+  CHECK (weight_kg IS NULL OR (weight_kg BETWEEN 40 AND 150));
+
 -- فهارس تخدم فلاتر التصفح الأساسية (الجنس دائماً في WHERE، والعمر الأكثر استخداماً).
 CREATE INDEX IF NOT EXISTS idx_profiles_gender_age ON profiles(gender, age);
 CREATE INDEX IF NOT EXISTS idx_profiles_religious ON profiles(religious_commitment);
+CREATE INDEX IF NOT EXISTS idx_profiles_height ON profiles(height_cm);
+CREATE INDEX IF NOT EXISTS idx_profiles_weight ON profiles(weight_kg);
+CREATE INDEX IF NOT EXISTS idx_profiles_skin_tone ON profiles(skin_tone);
 
 CREATE TABLE IF NOT EXISTS interest_requests (
   id          SERIAL PRIMARY KEY,
