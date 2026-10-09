@@ -7,16 +7,42 @@ function extractToken(req) {
   return header.startsWith('Bearer ') ? header.slice(7) : req.query.t || null;
 }
 
-/** يتطلب رأس Authorization: Bearer <token> ويضع req.userId. */
-export function authRequired(req, res, next) {
+/**
+ * يتطلب رأس Authorization: Bearer <token> ويضع req.userId.
+ * يفحص أيضاً is_banned في كل طلب (لا فقط عند تسجيل الدخول) حتى يُطبَّق أي
+ * إيقاف حساب من لوحة الإدارة فوراً، حتى لو كان المستخدم يحمل توكن جلسة سابق
+ * صالحاً لمدة أيام (JWT_EXPIRES_IN).
+ */
+export async function authRequired(req, res, next) {
   const token = extractToken(req);
   if (!token) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
+  let userId;
   try {
-    const payload = verifyToken(token);
-    req.userId = Number(payload.sub);
-    next();
+    userId = Number(verifyToken(token).sub);
   } catch {
-    res.status(401).json({ error: 'الجلسة غير صالحة أو منتهية' });
+    return res.status(401).json({ error: 'الجلسة غير صالحة أو منتهية' });
+  }
+  try {
+    const { rows } = await query('SELECT is_banned FROM users WHERE id = $1', [userId]);
+    if (!rows.length) return res.status(401).json({ error: 'الجلسة غير صالحة أو منتهية' });
+    if (rows[0].is_banned)
+      return res.status(403).json({ error: 'تم إيقاف هذا الحساب', code: 'BANNED' });
+    req.userId = userId;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** يتطلب is_admin = true (يُركَّب دائماً بعد authRequired). */
+export async function adminRequired(req, res, next) {
+  try {
+    const { rows } = await query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+    if (!rows.length || !rows[0].is_admin)
+      return res.status(403).json({ error: 'صلاحيات غير كافية' });
+    next();
+  } catch (err) {
+    next(err);
   }
 }
 

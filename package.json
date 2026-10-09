@@ -10,6 +10,7 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js",
     "set-setting": "node src/db/set-setting.js",
+    "set-admin": "node src/db/set-admin.js",
     "migrate-photos-to-r2": "node src/db/migrate-photos-to-r2.js"
   },
   "dependencies": {

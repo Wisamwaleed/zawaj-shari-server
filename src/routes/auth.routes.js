@@ -4,6 +4,7 @@ import { query } from '../db/pool.js';
 import { signToken } from '../utils/jwt.js';
 import { authRequired } from '../middleware/auth.js';
 import { generateReferralCode, applyReferralCode, referralStats } from '../services/referrals.js';
+import { deleteObject } from '../services/storage.js';
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,6 +17,10 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ error: 'البريد الإلكتروني غير صالح' });
     if (password.length < 8)
       return res.status(400).json({ error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' });
+    // إقرار ذاتي إلزامي بالعمر (18+) عند التسجيل - ليس تحققاً حقيقياً من الهوية،
+    // لكنه يسجّل موافقة صريحة بتاريخها بدل الاكتفاء بحقل عمر اختياري لاحقاً.
+    if (req.body?.ageConfirmed !== true)
+      return res.status(400).json({ error: 'يجب تأكيد أنك فوق 18 عاماً للتسجيل' });
 
     const exists = await query('SELECT 1 FROM users WHERE email = $1', [email]);
     if (exists.rowCount)
@@ -25,8 +30,8 @@ router.post('/register', async (req, res, next) => {
     const referralCode = String(req.body?.referralCode || '').trim();
     const myReferralCode = await generateReferralCode();
     const { rows } = await query(
-      `INSERT INTO users (email, password_hash, referral_code)
-       VALUES ($1, $2, $3) RETURNING id, email`,
+      `INSERT INTO users (email, password_hash, referral_code, age_confirmed_at)
+       VALUES ($1, $2, $3, now()) RETURNING id, email`,
       [email, passwordHash, myReferralCode]
     );
     const user = rows[0];
@@ -44,12 +49,14 @@ router.post('/login', async (req, res, next) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const { rows } = await query(
-      'SELECT id, email, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, is_banned FROM users WHERE email = $1',
       [email]
     );
     const user = rows[0];
     const ok = user && (await bcrypt.compare(password, user.password_hash));
     if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+    if (user.is_banned)
+      return res.status(403).json({ error: 'تم إيقاف هذا الحساب', code: 'BANNED' });
 
     res.json({ token: signToken(user.id), user: { id: user.id, email: user.email } });
   } catch (err) {
@@ -113,6 +120,34 @@ router.post('/pledge', authRequired, async (req, res, next) => {
       pledge_accepted: true,
       pledge_accepted_at: rows[0].pledge_accepted_at,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * حذف الحساب نهائياً (لا تراجع). يتطلب كلمة المرور الحالية كتأكيد إضافي.
+ * CASCADE في المخطط يحذف تلقائياً: الملف الشخصي، الصور (الإشارة)، طلبات
+ * التعارف، الرسائل، الحظورات، البلاغات، الزيارات، مكافآت الدعوة. كائنات
+ * R2 الفعلية (original.webp/blurred.webp) لا تُحذف تلقائياً بالـ CASCADE
+ * لأنها خارج قاعدة البيانات - تُحذف صراحة هنا قبل حذف الصف.
+ */
+router.delete('/me', authRequired, async (req, res, next) => {
+  try {
+    const password = String(req.body?.password || '');
+    const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [
+      req.userId,
+    ]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
+
+    await deleteObject(`photos/${req.userId}/original.webp`);
+    await deleteObject(`photos/${req.userId}/blurred.webp`);
+    await query('DELETE FROM users WHERE id = $1', [req.userId]);
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

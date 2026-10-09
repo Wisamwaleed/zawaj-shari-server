@@ -26,6 +26,25 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription ON users(subscription_tier, su
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES users(id);
 
+-- SET NULL (بدل RESTRICT الافتراضي) حتى لا يمنع حذف حساب "داعٍ" حذفَ نفسه
+-- بسبب وجود مدعوّين يشيرون إليه عبر referred_by.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_referred_by_fkey;
+ALTER TABLE users ADD CONSTRAINT users_referred_by_fkey
+  FOREIGN KEY (referred_by) REFERENCES users(id) ON DELETE SET NULL;
+
+-- تأكيد صريح عند التسجيل بأن المستخدم فوق 18 عاماً (إقرار ذاتي، وليس تحققاً
+-- حقيقياً من الهوية) - يُسجَّل تاريخه كسجل قانوني/تدقيقي. NULL = لم يؤكد (حسابات قديمة).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age_confirmed_at TIMESTAMPTZ;
+
+-- صلاحية الإشراف (لوحة الإدارة) - تُفعَّل يدوياً فقط عبر:
+--   node src/db/set-admin.js <email>
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+-- إيقاف حساب من لوحة الإدارة (يمنع تسجيل الدخول واستخدام أي مسار محمي فوراً).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+
 CREATE TABLE IF NOT EXISTS profiles (
   user_id             INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   display_name        TEXT,
@@ -99,6 +118,13 @@ CREATE TABLE IF NOT EXISTS reports (
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS category TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id, created_at);
+
+-- مراجعة البلاغات من لوحة الإدارة: pending | resolved | dismissed
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
 
 -- زيارات الملفات الشخصية (ميزة "من زار ملفك" لمشتركي Platinum).
 -- صف واحد لكل زوج (زائر، مُزار) يُحدَّث تاريخه عند كل زيارة جديدة.

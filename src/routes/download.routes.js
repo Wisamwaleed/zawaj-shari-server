@@ -68,6 +68,8 @@ router.get('/', async (req, res, next) => {
   }
   .steps { text-align: right; font-size: 13px; line-height: 2; color: #e6dcc0; }
   .steps b { color: #D4AF37; }
+  .legal { margin-top: 20px; font-size: 12px; color: #93a69c; }
+  .legal a { color: #93a69c; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -89,6 +91,8 @@ router.get('/', async (req, res, next) => {
       <div><b>3.</b> إذا ظهرت رسالة تمنع التثبيت، اذهب إلى: الإعدادات ← الأمان (أو التطبيقات) ← السماح بالتثبيت من هذا المصدر.</div>
       <div><b>4.</b> ارجع وافتح الملف مجدداً واضغط «تثبيت».</div>
     </div>
+
+    <div class="legal"><a href="/privacy">سياسة الخصوصية</a> &nbsp;·&nbsp; <a href="/terms">الشروط والأحكام</a></div>
   </div>
 </body>
 </html>`);

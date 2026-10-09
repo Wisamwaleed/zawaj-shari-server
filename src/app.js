@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/index.js';
 import { pool } from './db/pool.js';
 import { notFound, errorHandler } from './middleware/error.js';
-import { pledgeRequired } from './middleware/auth.js';
+import { pledgeRequired, authRequired, adminRequired } from './middleware/auth.js';
 import { MAX_PHOTO_BYTES } from './middleware/upload.js';
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
@@ -20,6 +20,8 @@ import subscriptionRoutes from './routes/subscription.routes.js';
 import visitsRoutes from './routes/visits.routes.js';
 import appVersionRoutes from './routes/appVersion.routes.js';
 import downloadRoutes from './routes/download.routes.js';
+import legalRoutes from './routes/legal.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +66,11 @@ app.get(['/health', '/api/health'], async (req, res) => {
 // عامة بلا مصادقة عمداً: تحديث التطبيق وصفحة التنزيل يجب أن يعملا حتى قبل تسجيل الدخول.
 app.use('/api/app-version', appVersionRoutes);
 app.use('/download', downloadRoutes);
+app.use('/', legalRoutes); // يضيف /privacy و /terms
+
+// صفحة لوحة الإدارة نفسها عامة (HTML ثابت)؛ كل البيانات تُجلب عبر مسارات
+// /api/admin المحمية أدناه بتسجيل دخول + is_admin - لا بيانات تُكشف بدون ذلك.
+app.get('/admin', (req, res) => res.sendFile(path.join(dir, '..', 'public', 'admin.html')));
 
 // نقطة تشخيص: تكشف فوراً إن كان النشر الحالي على Railway يحمل آخر تعديلات الكود
 // (مثل رفع حد حجم الصورة) أم لا يزال إصداراً قديماً. 404 على هذا المسار نفسه = نشر قديم.
@@ -87,6 +94,10 @@ app.use('/api/messages', pledgeRequired, messageRoutes);
 app.use('/api/moderation', pledgeRequired, moderationRoutes);
 app.use('/api/subscription', pledgeRequired, subscriptionRoutes);
 app.use('/api/visits', pledgeRequired, visitsRoutes);
+
+// لوحة الإدارة: مصادقة + صلاحية is_admin فقط - بلا تعهّد (قد يكون المشرف لم
+// يسجّل حساباً مستخدماً عادياً أصلاً).
+app.use('/api/admin', authRequired, adminRequired, adminRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
