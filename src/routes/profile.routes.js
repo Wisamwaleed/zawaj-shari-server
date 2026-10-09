@@ -16,6 +16,10 @@ import {
 
 const router = Router();
 
+// أقل حجم معقول لملف صورة حقيقي - أي شيء أصغر على الأغلب ملف فارغ/تالف
+// وليس صورة فعلية (انظر تعليق الفحص في /me/photo).
+const MIN_PHOTO_BYTES = 5 * 1024;
+
 // الحقول النصية/الاختيارية القابلة للتعديل من العميل.
 const EDITABLE = [
   'display_name',
@@ -142,11 +146,29 @@ router.post('/me/photo', authRequired, (req, res, next) => {
     console.log(
       `[upload] user=${req.userId} بدء المعالجة (${sizeKB}KB, ${req.file.mimetype}, تخزين=${storageBackend})`
     );
+
+    // دفاع ضد ملف فارغ/شبه فارغ وصل سليماً عبر multer لكنه ليس صورة حقيقية
+    // (مثلاً انقطاع أثناء القراءة على جهاز المُرسِل) - أفضل رفضه بوضوح الآن
+    // من حفظ "صورة" تالفة لا تظهر لاحقاً بلا أي تفسير.
+    if (req.file.size < MIN_PHOTO_BYTES) {
+      console.warn(`[upload] user=${req.userId} فشل: حجم صغير جداً (${req.file.size} بايت)`);
+      return res.status(400).json({ error: 'حجم الملف صغير جداً ليكون صورة صالحة. جرّب صورة أخرى.' });
+    }
+
+    let original, blurred;
+    try {
+      ({ original, blurred } = await processPhoto(req.file.buffer));
+    } catch (e) {
+      // فشل sharp بالذات = الملف ليس صورة قابلة للقراءة أصلاً - خطأ من
+      // المستخدم (ملف تالف/صيغة غير مدعومة)، وليس خطأ سيرفر 500 عام.
+      console.warn(`[upload] user=${req.userId} فشل: sharp تعذّر عليه قراءة الملف - ${e.message}`);
+      return res.status(400).json({ error: 'تعذّر قراءة هذه الصورة. قد يكون الملف تالفاً، جرّب صورة أخرى.' });
+    }
+
     try {
       // مفتاح ثابت لكل مستخدم (photos/{userId}/...) - كل رفع جديد يستبدل
       // نفس الكائنين في R2/التخزين المحلي تلقائياً، فلا حاجة لتتبّع اسم ملف
       // قديم أو حذفه يدوياً كما كان سابقاً.
-      const { original, blurred } = await processPhoto(req.file.buffer);
       await Promise.all([
         putObject(`photos/${req.userId}/original.webp`, original, 'image/webp'),
         putObject(`photos/${req.userId}/blurred.webp`, blurred, 'image/webp'),
@@ -158,7 +180,7 @@ router.post('/me/photo', authRequired, (req, res, next) => {
       console.log(`[upload] user=${req.userId} نجح (${Date.now() - startedAt}ms)`);
       res.status(201).json({ ok: true });
     } catch (e) {
-      console.error(`[upload] user=${req.userId} فشل أثناء المعالجة/التخزين:`, e.message);
+      console.error(`[upload] user=${req.userId} فشل أثناء التخزين:`, e.message);
       next(e);
     }
   });
