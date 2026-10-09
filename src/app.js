@@ -22,6 +22,7 @@ import appVersionRoutes from './routes/appVersion.routes.js';
 import downloadRoutes from './routes/download.routes.js';
 import legalRoutes from './routes/legal.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import clientLogRoutes from './routes/clientLog.routes.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,6 +68,9 @@ app.get(['/health', '/api/health'], async (req, res) => {
 app.use('/api/app-version', appVersionRoutes);
 app.use('/download', downloadRoutes);
 app.use('/', legalRoutes); // يضيف /privacy و /terms
+
+// سجل تشخيصي من التطبيق - عام عمداً (راجع تعليق الملف نفسه).
+app.use('/api/client-log', clientLogRoutes);
 
 // صفحة لوحة الإدارة نفسها عامة (HTML ثابت)؛ كل البيانات تُجلب عبر مسارات
 // /api/admin المحمية أدناه بتسجيل دخول + is_admin - لا بيانات تُكشف بدون ذلك.
