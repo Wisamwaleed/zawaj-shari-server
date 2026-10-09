@@ -18,7 +18,7 @@ import { putObject, storageBackend } from '../services/storage.js';
 async function main() {
   if (storageBackend !== 'r2') {
     console.error(
-      '❌ R2 غير مُفعَّل حالياً (لم تُضبط R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET_NAME).\n' +
+      '❌ R2 غير مُفعَّل حالياً (لم تُضبط R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET).\n' +
         '   أضفها في متغيرات البيئة أولاً ثم أعد تشغيل هذا السكربت.'
     );
     process.exitCode = 1;

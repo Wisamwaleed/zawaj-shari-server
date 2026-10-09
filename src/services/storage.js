@@ -15,7 +15,7 @@ let s3 = null;
 if (config.r2Enabled) {
   s3 = new S3Client({
     region: 'auto',
-    endpoint: `https://${config.r2AccountId}.r2.cloudflarestorage.com`,
+    endpoint: config.r2Endpoint,
     credentials: {
       accessKeyId: config.r2AccessKeyId,
       secretAccessKey: config.r2SecretAccessKey,

@@ -25,17 +25,19 @@ export const config = {
 
   // Cloudflare R2 (توافق S3). بلا هذه المتغيرات يعود رفع الصور تلقائياً
   // للتخزين على القرص المحلي (uploads/) - مفيد للتطوير المحلي بدون حساب R2.
-  r2AccountId: cleanEnv(process.env.R2_ACCOUNT_ID),
+  // R2_ENDPOINT رابط كامل (https://<account-id>.r2.cloudflarestorage.com)
+  // وليس مجرّد account id - كما يُعطى مباشرة من واجهة Cloudflare R2.
+  r2Endpoint: cleanEnv(process.env.R2_ENDPOINT),
   r2AccessKeyId: cleanEnv(process.env.R2_ACCESS_KEY_ID),
   r2SecretAccessKey: cleanEnv(process.env.R2_SECRET_ACCESS_KEY),
-  r2Bucket: cleanEnv(process.env.R2_BUCKET_NAME),
+  r2Bucket: cleanEnv(process.env.R2_BUCKET),
 };
 
 const r2Vars = {
-  R2_ACCOUNT_ID: config.r2AccountId,
+  R2_ENDPOINT: config.r2Endpoint,
   R2_ACCESS_KEY_ID: config.r2AccessKeyId,
   R2_SECRET_ACCESS_KEY: config.r2SecretAccessKey,
-  R2_BUCKET_NAME: config.r2Bucket,
+  R2_BUCKET: config.r2Bucket,
 };
 const r2SetCount = Object.values(r2Vars).filter(Boolean).length;
 config.r2Enabled = r2SetCount === 4;
