@@ -67,6 +67,8 @@ app.get(['/health', '/api/health'], async (req, res) => {
 // عامة بلا مصادقة عمداً: تحديث التطبيق وصفحة التنزيل يجب أن يعملا حتى قبل تسجيل الدخول.
 app.use('/api/app-version', appVersionRoutes);
 app.use('/download', downloadRoutes);
+// الدومين الرئيسي يفتح صفحة التنزيل مباشرة - هذا هو الرابط الذي يُنشر على فيسبوك.
+app.get('/', (req, res) => res.redirect('/download'));
 app.use('/', legalRoutes); // يضيف /privacy و /terms
 
 // سجل تشخيصي من التطبيق - عام عمداً (راجع تعليق الملف نفسه).

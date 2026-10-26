@@ -20,6 +20,10 @@ router.get('/', async (req, res, next) => {
     const s = await getSettings();
     const apkUrl = s.APK_URL || '';
     const changelog = escapeHtml(s.CHANGELOG || '');
+    // فيسبوك يحتاج روابط مطلقة لصورة المعاينة؛ نبنيها من الدومين الذي طُلبت منه الصفحة.
+    const origin = `https://${escapeHtml(req.get('host'))}`;
+    const ogTitle = 'زواج شرعي - تطبيق تعارف للزواج الجاد';
+    const ogDesc = 'منصة تعارف زواج جدية ومحافظة. الصور مخفية حتى القبول، والمحادثة بعد الموافقة فقط. حمّل التطبيق مجاناً لأندرويد.';
 
     res.type('html').send(`<!doctype html>
 <html lang="ar" dir="rtl">
@@ -27,6 +31,16 @@ router.get('/', async (req, res, next) => {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>زواج شرعي - تحميل التطبيق</title>
+<meta name="description" content="${ogDesc}" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="ar_AR" />
+<meta property="og:site_name" content="زواج شرعي" />
+<meta property="og:title" content="${ogTitle}" />
+<meta property="og:description" content="${ogDesc}" />
+<meta property="og:url" content="${origin}/download" />
+<meta property="og:image" content="${origin}/icon.png" />
+<meta name="twitter:card" content="summary" />
+<link rel="icon" href="/icon.png" />
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
