@@ -47,6 +47,29 @@ export async function putObject(key, buffer, contentType) {
   await fs.promises.writeFile(localPathFor(key), buffer);
 }
 
+/**
+ * يبث ملفاً من R2 دون تحميله كاملاً في الذاكرة (لملفات كبيرة مثل APK).
+ * range: رأس HTTP Range كما وصل (اختياري) - يتيح استئناف التنزيل المتقطع.
+ * @returns {Promise<{ body, contentLength, contentRange, contentType } | null>}
+ */
+export async function getObjectStream(key, range) {
+  if (!s3) return null;
+  try {
+    const res = await s3.send(
+      new GetObjectCommand({ Bucket: config.r2Bucket, Key: key, Range: range || undefined })
+    );
+    return {
+      body: res.Body,
+      contentLength: res.ContentLength,
+      contentRange: res.ContentRange,
+      contentType: res.ContentType,
+    };
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.name === 'InvalidRange') return null;
+    throw err;
+  }
+}
+
 /** يُعيد Buffer أو null إن لم يوجد الملف. */
 export async function getObjectBuffer(key) {
   if (s3) {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getSettings } from '../services/settings.js';
 import { webColors as c } from '../constants/theme.js';
+import { getObjectStream } from '../services/storage.js';
 
 const router = Router();
 
@@ -111,6 +112,33 @@ router.get('/', async (req, res, next) => {
   </div>
 </body>
 </html>`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * ملف APK نفسه، يُبث من R2 (الحاوية خاصة - لا رابط عام مباشر). رابط ثابت لا
+ * ينتهي، بعكس روابط Expo المؤقتة. المفتاح في الإعداد APK_R2_KEY.
+ */
+router.get('/zawaj-shari.apk', async (req, res, next) => {
+  try {
+    const key = (await getSettings()).APK_R2_KEY;
+    const obj = key ? await getObjectStream(key, req.headers.range) : null;
+    if (!obj) return res.status(404).type('text').send('الملف غير متاح حالياً');
+
+    res.status(obj.contentRange ? 206 : 200);
+    res.set({
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Disposition': 'attachment; filename="zawaj-shari.apk"',
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-cache',
+    });
+    if (obj.contentLength != null) res.set('Content-Length', String(obj.contentLength));
+    if (obj.contentRange) res.set('Content-Range', obj.contentRange);
+    obj.body.on('error', (err) => res.destroy(err));
+    req.on('close', () => obj.body.destroy?.());
+    obj.body.pipe(res);
   } catch (err) {
     next(err);
   }

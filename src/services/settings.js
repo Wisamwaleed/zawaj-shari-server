@@ -6,6 +6,7 @@ const DEFAULTS = {
   MIN_VERSION_CODE: '1',
   LATEST_VERSION_CODE: '1',
   APK_URL: '',
+  APK_R2_KEY: '', // مفتاح ملف APK في R2 - يُبث عبر /download/zawaj-shari.apk
   CHANGELOG: '',
   // إعلانات المكافأة (AdMob Rewarded) - انظر src/services/ads.js
   ADS_ENABLED: 'true',
