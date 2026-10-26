@@ -164,6 +164,21 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
   UNIQUE (referred_id)
 );
 
+-- مكافآت إعلانات AdMob (Rewarded): صف لكل "جلسة إعلان" يُنشأ قبل تحميل الإعلان
+-- (nonce يُمرَّر لـ AdMob كـ custom_data). claimed_at = مُنحت المكافأة فعلاً (طلب تعارف
+-- إضافي لليوم)؛ ssv_verified_at = وصل تأكيد موقَّع من خوادم Google (Server-Side Verification).
+CREATE TABLE IF NOT EXISTS ad_rewards (
+  id                 SERIAL PRIMARY KEY,
+  user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  nonce              TEXT NOT NULL UNIQUE,
+  ssv_transaction_id TEXT UNIQUE,
+  ssv_verified_at    TIMESTAMPTZ,
+  claimed_at         TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ad_rewards_user_claimed ON ad_rewards(user_id, claimed_at DESC);
+
 -- إعدادات عامة للتطبيق يُعدَّلها المطوّر مباشرة (key/value، كل القيم نصوص).
 -- انظر src/services/settings.js لقائمة المفاتيح المعروفة وقيمها الافتراضية.
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -178,5 +193,9 @@ INSERT INTO app_settings (key, value) VALUES
   ('MIN_VERSION_CODE', '1'),
   ('LATEST_VERSION_CODE', '1'),
   ('APK_URL', ''),
-  ('CHANGELOG', '')
+  ('CHANGELOG', ''),
+  ('ADS_ENABLED', 'true'),
+  ('ADS_DAILY_LIMIT', '5'),
+  ('ADS_COOLDOWN_SECONDS', '180'),
+  ('ADS_REQUIRE_SSV', 'false')
 ON CONFLICT (key) DO NOTHING;

@@ -179,11 +179,25 @@ export async function getEffectiveLimits(userId) {
     return { dailyRequests: -1, dailyMessagesPerConversation: -1, exemptByGender: true };
   }
   const plan = await getPlan(userId);
+  // كل إعلان مكافأة شوهد اليوم = طلب تعارف إضافي فوق حد الخطة (لا معنى له إن كان بلا حدود).
+  const adBonus = plan.dailyRequests < 0 ? 0 : await adRewardsClaimedToday(userId);
   return {
-    dailyRequests: plan.dailyRequests,
+    dailyRequests: plan.dailyRequests < 0 ? -1 : plan.dailyRequests + adBonus,
     dailyMessagesPerConversation: plan.dailyMessagesPerConversation,
     exemptByGender: false,
+    baseDailyRequests: plan.dailyRequests,
+    adBonusRequests: adBonus,
   };
+}
+
+/** عدد مكافآت الإعلانات التي مُنحت للمستخدم اليوم (كل واحدة = طلب تعارف إضافي). */
+export async function adRewardsClaimedToday(userId) {
+  const { rows } = await query(
+    `SELECT count(*)::int AS n FROM ad_rewards
+     WHERE user_id = $1 AND claimed_at >= date_trunc('day', now())`,
+    [userId]
+  );
+  return rows[0].n;
 }
 
 /** هل لدى المستخدم اشتراك Platinum ساري المفعول؟ */
@@ -221,8 +235,8 @@ export async function assertCanSendRequest(userId) {
   if (used >= dailyRequests) {
     throw httpError(
       429,
-      `بلغت الحد اليومي (${dailyRequests} طلبات) في الخطة المجانية. رقِّ اشتراكك لطلبات غير محدودة.`,
-      { code: 'LIMIT_REACHED' }
+      `بلغت الحد اليومي (${dailyRequests} طلبات) في الخطة المجانية. شاهد إعلاناً قصيراً لطلب إضافي، أو رقِّ اشتراكك لطلبات غير محدودة.`,
+      { code: 'REQUEST_LIMIT_REACHED' }
     );
   }
 }

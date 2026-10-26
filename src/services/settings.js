@@ -7,6 +7,11 @@ const DEFAULTS = {
   LATEST_VERSION_CODE: '1',
   APK_URL: '',
   CHANGELOG: '',
+  // إعلانات المكافأة (AdMob Rewarded) - انظر src/services/ads.js
+  ADS_ENABLED: 'true',
+  ADS_DAILY_LIMIT: '5',
+  ADS_COOLDOWN_SECONDS: '180',
+  ADS_REQUIRE_SSV: 'false',
 };
 
 const CACHE_TTL_MS = 15_000; // يكفي لتقليل الضغط على القاعدة دون تأخير ملموس عند تغيير إعداد

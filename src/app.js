@@ -23,6 +23,7 @@ import downloadRoutes from './routes/download.routes.js';
 import legalRoutes from './routes/legal.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import clientLogRoutes from './routes/clientLog.routes.js';
+import adsRoutes from './routes/ads.routes.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -100,6 +101,8 @@ app.use('/api/messages', pledgeRequired, messageRoutes);
 app.use('/api/moderation', pledgeRequired, moderationRoutes);
 app.use('/api/subscription', pledgeRequired, subscriptionRoutes);
 app.use('/api/visits', pledgeRequired, visitsRoutes);
+// /api/ads/ssv يستدعيه Google بلا توكن - pledgeRequired يمرّره دون توكن أصلاً.
+app.use('/api/ads', pledgeRequired, adsRoutes);
 
 // لوحة الإدارة: مصادقة + صلاحية is_admin فقط - بلا تعهّد (قد يكون المشرف لم
 // يسجّل حساباً مستخدماً عادياً أصلاً).
