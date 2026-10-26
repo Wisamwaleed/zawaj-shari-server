@@ -31,8 +31,8 @@ export async function createMessage({ requestId, senderId, body }) {
   if (await isBlockedBetween(senderId, recipientId))
     throw httpError(403, 'المحادثة غير متاحة');
 
-  // قيود الاشتراك (الخطة المجانية: 10 رسائل يومياً لكل محادثة).
-  await assertCanSendMessage(senderId, requestId);
+  // قيود الاشتراك (الخطة المجانية: 10 رسائل يومياً + 50 حرفاً للرسالة).
+  await assertCanSendMessage(senderId, text);
 
   const { rows } = await query(
     `INSERT INTO messages (request_id, sender_id, body)

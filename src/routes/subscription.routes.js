@@ -8,8 +8,8 @@ import {
   getEffectiveSubscription,
   getEffectiveLimits,
   requestsSentToday,
+  messagesSentToday,
 } from '../services/limits.js';
-import { getUserGender } from '../services/relations.js';
 
 const router = Router();
 
@@ -18,12 +18,14 @@ router.get('/', authRequired, async (req, res, next) => {
   try {
     const sub = await getEffectiveSubscription(req.userId);
     const limits = await getEffectiveLimits(req.userId);
-    const usedRequests = await requestsSentToday(req.userId);
-    const gender = await getUserGender(req.userId);
+    const [usedRequests, usedMessages] = await Promise.all([
+      requestsSentToday(req.userId),
+      messagesSentToday(req.userId),
+    ]);
 
     res.json({
       freeMode: sub.freeMode,
-      freePlan: getFreePlanInfo(gender),
+      freePlan: getFreePlanInfo(),
       paidOffers: PAID_OFFERS,
       // الطبقة المخزّنة والفعلية (قد تختلفان إذا انتهت الصلاحية أو كان FREE_MODE مفعَّلاً)
       storedTier: sub.storedTier,
@@ -33,8 +35,10 @@ router.get('/', authRequired, async (req, res, next) => {
       hasVisitorsFeature: sub.plan.hasVisitorsFeature,
       usage: {
         requestsToday: usedRequests,
-        dailyRequestLimit: limits.dailyRequests, // -1 = بلا حدود (يشمل استثناء الإناث)
-        exemptByGender: limits.exemptByGender,
+        dailyRequestLimit: limits.dailyRequests, // -1 = بلا حدود (يشمل مكافآت الإعلانات)
+        messagesToday: usedMessages,
+        dailyMessageLimit: limits.dailyMessages,
+        maxMessageLength: limits.maxMessageLength,
       },
     });
   } catch (err) {

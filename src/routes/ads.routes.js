@@ -18,10 +18,10 @@ router.get('/rewarded', authRequired, async (req, res, next) => {
   }
 });
 
-/** يبدأ جلسة إعلان ويعيد nonce يُمرَّر لـ AdMob كـ customData. */
+/** يبدأ جلسة إعلان ويعيد nonce يُمرَّر لـ AdMob كـ customData. body: { type: 'requests' | 'messages' } */
 router.post('/rewarded/session', authRequired, async (req, res, next) => {
   try {
-    res.json(await createRewardedSession(req.userId));
+    res.json(await createRewardedSession(req.userId, String(req.body?.type || '')));
   } catch (err) {
     next(err);
   }

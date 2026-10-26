@@ -9,8 +9,8 @@ const DEFAULTS = {
   CHANGELOG: '',
   // إعلانات المكافأة (AdMob Rewarded) - انظر src/services/ads.js
   ADS_ENABLED: 'true',
-  ADS_DAILY_LIMIT: '5',
-  ADS_COOLDOWN_SECONDS: '180',
+  ADS_DAILY_LIMIT: '10',
+  ADS_COOLDOWN_SECONDS: '60',
   ADS_REQUIRE_SSV: 'false',
 };
 

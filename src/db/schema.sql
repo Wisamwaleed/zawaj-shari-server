@@ -165,12 +165,13 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
 );
 
 -- مكافآت إعلانات AdMob (Rewarded): صف لكل "جلسة إعلان" يُنشأ قبل تحميل الإعلان
--- (nonce يُمرَّر لـ AdMob كـ custom_data). claimed_at = مُنحت المكافأة فعلاً (طلب تعارف
--- إضافي لليوم)؛ ssv_verified_at = وصل تأكيد موقَّع من خوادم Google (Server-Side Verification).
+-- (nonce يُمرَّر لـ AdMob كـ custom_data). reward_type: requests (+3 طلبات) أو
+-- messages (+10 رسائل). claimed_at = مُنحت المكافأة فعلاً لليوم؛ ssv_verified_at = وصل تأكيد موقَّع من خوادم Google (Server-Side Verification).
 CREATE TABLE IF NOT EXISTS ad_rewards (
   id                 SERIAL PRIMARY KEY,
   user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   nonce              TEXT NOT NULL UNIQUE,
+  reward_type        TEXT NOT NULL DEFAULT 'requests' CHECK (reward_type IN ('requests', 'messages')),
   ssv_transaction_id TEXT UNIQUE,
   ssv_verified_at    TIMESTAMPTZ,
   claimed_at         TIMESTAMPTZ,
@@ -195,7 +196,7 @@ INSERT INTO app_settings (key, value) VALUES
   ('APK_URL', ''),
   ('CHANGELOG', ''),
   ('ADS_ENABLED', 'true'),
-  ('ADS_DAILY_LIMIT', '5'),
-  ('ADS_COOLDOWN_SECONDS', '180'),
+  ('ADS_DAILY_LIMIT', '10'),
+  ('ADS_COOLDOWN_SECONDS', '60'),
   ('ADS_REQUIRE_SSV', 'false')
 ON CONFLICT (key) DO NOTHING;

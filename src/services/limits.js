@@ -1,6 +1,5 @@
 import { query } from '../db/pool.js';
 import { httpError } from '../middleware/error.js';
-import { getUserGender } from './relations.js';
 import { isFreeMode } from './settings.js';
 
 /**
@@ -16,26 +15,32 @@ export const PLANS = {
     id: 'free',
     name: 'مجاني',
     dailyRequests: 3,
-    dailyMessagesPerConversation: 10,
+    dailyMessages: 10, // إجمالي اليوم عبر كل المحادثات
+    maxMessageLength: 50,
     hasVisitorsFeature: false,
   },
   plus: {
     id: 'plus',
     name: 'Plus',
     dailyRequests: -1,
-    dailyMessagesPerConversation: -1,
+    dailyMessages: -1,
+    maxMessageLength: 2000,
     hasVisitorsFeature: false,
   },
   platinum: {
     id: 'platinum',
     name: 'Platinum',
     dailyRequests: -1,
-    dailyMessagesPerConversation: -1,
+    dailyMessages: -1,
+    maxMessageLength: 2000,
     hasVisitorsFeature: true,
   },
 };
 
 export const TIERS = Object.keys(PLANS);
+
+/** ما يمنحه إعلان مكافأة واحد، حسب نوعه (انظر src/services/ads.js). */
+export const AD_REWARD_AMOUNTS = { requests: 3, messages: 10 };
 
 /**
  * العروض المدفوعة المعروضة في صفحة الاشتراكات.
@@ -98,29 +103,18 @@ export const PAID_OFFERS_BY_ID = Object.fromEntries(
   PAID_OFFERS.map((o) => [o.id, o])
 );
 
-/**
- * وصف الخطة المجانية - يختلف بحسب الجنس لأن الإناث مُعفَيات دائماً من حدّي
- * الطلبات والرسائل (راجع getEffectiveLimits)، بينما تبقى مزايا Platinum
- * (الزوّار/الأولوية/الشارة) تتطلب اشتراكاً فعلياً للجميع. (لا تُستخدَم هذه
- * التفاصيل أصلاً حين يكون FREE_MODE مفعَّلاً - الشاشة تعرض شارة بدلاً منها.)
- */
-export function getFreePlanInfo(gender) {
-  const unlimited = gender === 'female';
+/** وصف الخطة المجانية - نفس الحدود للرجال والنساء. */
+export function getFreePlanInfo() {
   return {
     id: 'free',
     name: 'مجاني',
     duration: 'دائم',
-    features: unlimited
-      ? [
-          'تصفح الملفات المطابقة',
-          'طلبات تعارف غير محدودة',
-          'رسائل غير محدودة',
-        ]
-      : [
-          'تصفح الملفات المطابقة',
-          'حتى 3 طلبات تعارف يومياً',
-          'حتى 10 رسائل يومياً في كل محادثة',
-        ],
+    features: [
+      'تصفح الملفات المطابقة',
+      `حتى ${PLANS.free.dailyRequests} طلبات تعارف يومياً`,
+      `حتى ${PLANS.free.dailyMessages} رسائل يومياً (${PLANS.free.maxMessageLength} حرفاً للرسالة)`,
+      `كل إعلان تشاهده = ${AD_REWARD_AMOUNTS.requests} طلبات أو ${AD_REWARD_AMOUNTS.messages} رسائل إضافية`,
+    ],
   };
 }
 
@@ -167,37 +161,38 @@ export async function getPlan(userId) {
 }
 
 /**
- * حدود الطلبات/الرسائل الفعلية للمستخدم، بعد مراعاة استثناء الإناث.
- * الإناث بلا حدود على الطلبات والرسائل دائماً - بغضّ النظر عن نوع الاشتراك -
- * لكن مزايا Platinum الأخرى (من زار ملفك، الأولوية، الشارة) تبقى تتطلب اشتراكاً فعلياً
- * كما هي لكل الجنسين؛ يمكن للأنثى الاشتراك اختيارياً للحصول عليها.
- * @returns {{ dailyRequests: number, dailyMessagesPerConversation: number, exemptByGender: boolean }}
+ * حدود الطلبات/الرسائل الفعلية للمستخدم اليوم: حد الخطة + مكافآت الإعلانات
+ * التي شاهدها اليوم. نفس الحدود للجنسين. -1 = بلا حدود.
+ * @returns {{ dailyRequests: number, dailyMessages: number, maxMessageLength: number,
+ *   baseDailyRequests: number, baseDailyMessages: number }}
  */
 export async function getEffectiveLimits(userId) {
-  const gender = await getUserGender(userId);
-  if (gender === 'female') {
-    return { dailyRequests: -1, dailyMessagesPerConversation: -1, exemptByGender: true };
-  }
   const plan = await getPlan(userId);
-  // كل إعلان مكافأة شوهد اليوم = طلب تعارف إضافي فوق حد الخطة (لا معنى له إن كان بلا حدود).
-  const adBonus = plan.dailyRequests < 0 ? 0 : await adRewardsClaimedToday(userId);
+  const bonus =
+    plan.dailyRequests < 0 && plan.dailyMessages < 0
+      ? { requests: 0, messages: 0 }
+      : await adRewardsClaimedToday(userId);
+  const withBonus = (base, extra) => (base < 0 ? -1 : base + extra);
   return {
-    dailyRequests: plan.dailyRequests < 0 ? -1 : plan.dailyRequests + adBonus,
-    dailyMessagesPerConversation: plan.dailyMessagesPerConversation,
-    exemptByGender: false,
+    dailyRequests: withBonus(plan.dailyRequests, bonus.requests * AD_REWARD_AMOUNTS.requests),
+    dailyMessages: withBonus(plan.dailyMessages, bonus.messages * AD_REWARD_AMOUNTS.messages),
+    maxMessageLength: plan.maxMessageLength,
     baseDailyRequests: plan.dailyRequests,
-    adBonusRequests: adBonus,
+    baseDailyMessages: plan.dailyMessages,
   };
 }
 
-/** عدد مكافآت الإعلانات التي مُنحت للمستخدم اليوم (كل واحدة = طلب تعارف إضافي). */
+/** عدد مكافآت الإعلانات الممنوحة اليوم لكل نوع: { requests, messages }. */
 export async function adRewardsClaimedToday(userId) {
   const { rows } = await query(
-    `SELECT count(*)::int AS n FROM ad_rewards
-     WHERE user_id = $1 AND claimed_at >= date_trunc('day', now())`,
+    `SELECT reward_type, count(*)::int AS n FROM ad_rewards
+     WHERE user_id = $1 AND claimed_at >= date_trunc('day', now())
+     GROUP BY reward_type`,
     [userId]
   );
-  return rows[0].n;
+  const out = { requests: 0, messages: 0 };
+  for (const r of rows) if (r.reward_type in out) out[r.reward_type] = r.n;
+  return out;
 }
 
 /** هل لدى المستخدم اشتراك Platinum ساري المفعول؟ */
@@ -216,18 +211,17 @@ export async function requestsSentToday(userId) {
   return rows[0].n;
 }
 
-/** عدد الرسائل التي أرسلها المستخدم اليوم داخل محادثة معيّنة. */
-export async function messagesSentTodayInConversation(userId, requestId) {
+/** عدد الرسائل التي أرسلها المستخدم اليوم في كل المحادثات. */
+export async function messagesSentToday(userId) {
   const { rows } = await query(
     `SELECT count(*)::int AS n FROM messages
-     WHERE sender_id = $1 AND request_id = $2
-       AND created_at >= date_trunc('day', now())`,
-    [userId, requestId]
+     WHERE sender_id = $1 AND created_at >= date_trunc('day', now())`,
+    [userId]
   );
   return rows[0].n;
 }
 
-/** يتحقق أن المستخدم لم يتجاوز حد طلبات التعارف اليومي (مع استثناء الإناث دائماً). */
+/** يتحقق أن المستخدم لم يتجاوز حد طلبات التعارف اليومي. */
 export async function assertCanSendRequest(userId) {
   const { dailyRequests } = await getEffectiveLimits(userId);
   if (dailyRequests < 0) return;
@@ -235,22 +229,29 @@ export async function assertCanSendRequest(userId) {
   if (used >= dailyRequests) {
     throw httpError(
       429,
-      `بلغت الحد اليومي (${dailyRequests} طلبات) في الخطة المجانية. شاهد إعلاناً قصيراً لطلب إضافي، أو رقِّ اشتراكك لطلبات غير محدودة.`,
+      `انتهت طلبات التعارف لليوم (${dailyRequests}). شاهد إعلاناً قصيراً لتحصل على ${AD_REWARD_AMOUNTS.requests} طلبات إضافية، أو رقِّ اشتراكك.`,
       { code: 'REQUEST_LIMIT_REACHED' }
     );
   }
 }
 
-/** يتحقق أن المستخدم لم يتجاوز حد الرسائل اليومي في هذه المحادثة (مع استثناء الإناث دائماً). */
-export async function assertCanSendMessage(userId, requestId) {
-  const { dailyMessagesPerConversation } = await getEffectiveLimits(userId);
-  if (dailyMessagesPerConversation < 0) return;
-  const used = await messagesSentTodayInConversation(userId, requestId);
-  if (used >= dailyMessagesPerConversation) {
+/** يتحقق من طول الرسالة وحد الرسائل اليومي للمستخدم. */
+export async function assertCanSendMessage(userId, text) {
+  const { dailyMessages, maxMessageLength } = await getEffectiveLimits(userId);
+  if (text.length > maxMessageLength) {
+    throw httpError(
+      400,
+      `الحد الأقصى للرسالة في الخطة المجانية ${maxMessageLength} حرفاً.`,
+      { code: 'MESSAGE_TOO_LONG' }
+    );
+  }
+  if (dailyMessages < 0) return;
+  const used = await messagesSentToday(userId);
+  if (used >= dailyMessages) {
     throw httpError(
       429,
-      `بلغت الحد اليومي (${dailyMessagesPerConversation} رسائل في المحادثة) في الخطة المجانية. رقِّ اشتراكك لرسائل غير محدودة.`,
-      { code: 'LIMIT_REACHED' }
+      `انتهت رسائلك لليوم (${dailyMessages}). شاهد إعلاناً قصيراً لتحصل على ${AD_REWARD_AMOUNTS.messages} رسائل إضافية، أو رقِّ اشتراكك.`,
+      { code: 'MESSAGE_LIMIT_REACHED' }
     );
   }
 }

@@ -2,13 +2,14 @@ import crypto from 'node:crypto';
 import { pool, query } from '../db/pool.js';
 import { httpError } from '../middleware/error.js';
 import { getSettings } from './settings.js';
-import { getEffectiveLimits, adRewardsClaimedToday } from './limits.js';
+import { getPlan, adRewardsClaimedToday, AD_REWARD_AMOUNTS } from './limits.js';
 
 /**
- * إعلانات المكافأة (AdMob Rewarded): كل إعلان يُشاهَد كاملاً = طلب تعارف إضافي لليوم.
+ * إعلانات المكافأة (AdMob Rewarded): كل إعلان يُشاهَد كاملاً = 3 طلبات تعارف أو
+ * 10 رسائل إضافية لليوم، حسب النوع الذي اختاره المستخدم (AD_REWARD_AMOUNTS).
  *
  * التدفق:
- * 1) POST /api/ads/rewarded/session → nonce (يُمرَّر لـ AdMob كـ custom_data قبل تحميل الإعلان).
+ * 1) POST /api/ads/rewarded/session { type } → nonce (يُمرَّر لـ AdMob كـ custom_data قبل تحميل الإعلان).
  * 2) بعد EARNED_REWARD في التطبيق → POST /api/ads/rewarded/claim { nonce }.
  * 3) (اختياري، يُفعَّل بـ ADS_REQUIRE_SSV=true) خوادم Google تستدعي GET /api/ads/ssv
  *    بتوقيع ECDSA؛ عندها لا تُمنح المكافأة إلا لجلسة وصل لها تأكيد موقَّع.
@@ -17,6 +18,7 @@ import { getEffectiveLimits, adRewardsClaimedToday } from './limits.js';
 
 const VERIFIER_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 const KEYS_TTL_MS = 24 * 60 * 60 * 1000;
+export const REWARD_TYPES = Object.keys(AD_REWARD_AMOUNTS);
 
 let keysCache = null;
 let keysAt = 0;
@@ -46,15 +48,17 @@ async function secondsSinceLastClaim(userId) {
  */
 export async function getRewardedStatus(userId) {
   const cfg = await adsConfig();
-  const limits = await getEffectiveLimits(userId);
-  const rewardsToday = limits.dailyRequests < 0 ? 0 : await adRewardsClaimedToday(userId);
+  const plan = await getPlan(userId);
+  const unlimited = plan.dailyRequests < 0 && plan.dailyMessages < 0;
+  const claimed = unlimited ? { requests: 0, messages: 0 } : await adRewardsClaimedToday(userId);
+  const rewardsToday = claimed.requests + claimed.messages; // الحد اليومي مشترك بين النوعين
   const since = await secondsSinceLastClaim(userId);
   const cooldownRemaining =
     since === null ? 0 : Math.max(0, cfg.cooldownSeconds - since);
 
   let reason = null;
   if (!cfg.enabled) reason = 'disabled';
-  else if (limits.dailyRequests < 0) reason = 'unlimited';
+  else if (unlimited) reason = 'unlimited';
   else if (rewardsToday >= cfg.dailyLimit) reason = 'daily_limit';
   else if (cooldownRemaining > 0) reason = 'cooldown';
 
@@ -64,18 +68,23 @@ export async function getRewardedStatus(userId) {
     rewardsToday,
     dailyLimit: cfg.dailyLimit,
     cooldownRemainingSeconds: cooldownRemaining,
-    reward: { type: 'extra_request', amount: 1 },
+    rewards: AD_REWARD_AMOUNTS,
   };
 }
 
 /** يُنشئ جلسة إعلان (nonce) إن كان المستخدم مؤهلاً الآن. */
-export async function createRewardedSession(userId) {
+export async function createRewardedSession(userId, type) {
+  if (!REWARD_TYPES.includes(type)) throw httpError(400, 'نوع مكافأة غير معروف');
   const status = await getRewardedStatus(userId);
   if (!status.available) {
     throw httpError(429, rejectMessage(status), { code: 'AD_UNAVAILABLE' });
   }
   const nonce = crypto.randomBytes(16).toString('hex');
-  await query('INSERT INTO ad_rewards (user_id, nonce) VALUES ($1, $2)', [userId, nonce]);
+  await query('INSERT INTO ad_rewards (user_id, nonce, reward_type) VALUES ($1, $2, $3)', [
+    userId,
+    nonce,
+    type,
+  ]);
   return { nonce };
 }
 
@@ -122,7 +131,7 @@ export async function claimRewardedSession(userId, nonce) {
 function rejectMessage(status) {
   switch (status.reason) {
     case 'unlimited':
-      return 'طلباتك غير محدودة أصلاً - لا حاجة لمشاهدة إعلان.';
+      return 'طلباتك ورسائلك غير محدودة أصلاً - لا حاجة لمشاهدة إعلان.';
     case 'daily_limit':
       return `شاهدت الحد الأقصى من الإعلانات اليوم (${status.dailyLimit}). عُد غداً.`;
     case 'cooldown':
