@@ -28,6 +28,10 @@ import adsRoutes from './routes/ads.routes.js';
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
+// Railway يمرّر كل الطلبات عبر وسيط واحد: بلا هذا يرى السيرفر عنوان الوسيط لكل
+// المستخدمين، فيعاملهم حدّ الطلبات كشخص واحد (10 محاولات دخول تمنع الجميع).
+// 1 = نثق بوسيط واحد فقط، فلا يمكن تزوير العنوان عبر X-Forwarded-For.
+app.set('trust proxy', 1);
 
 app.use(cors({ origin: config.clientOrigin }));
 app.use(express.json());
