@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
+import { getSetting } from '../services/settings.js';
 import { authRequired } from '../middleware/auth.js';
 import {
   PAID_OFFERS,
@@ -47,7 +48,9 @@ router.get('/', authRequired, async (req, res, next) => {
 });
 
 /**
- * تفعيل خطة (تجريبي - بدون دفع فعلي).
+ * تفعيل خطة (تجريبي - بدون دفع فعلي). تفعيل الخطط المدفوعة مغلق افتراضياً
+ * (ALLOW_DEMO_SUBSCRIPTIONS=false) - وإلا يحصل أي مستخدم على Platinum مجاناً
+ * بمجرد ضغطة، ما يُبطل حدود الخطة المجانية بالكامل. يُفتح فقط للتجربة.
  * body: { plan: 'free' | 'plus_weekly' | 'plus_monthly' | 'platinum_weekly' | 'platinum_monthly' }
  */
 router.post('/', authRequired, async (req, res, next) => {
@@ -65,6 +68,12 @@ router.post('/', authRequired, async (req, res, next) => {
 
     const offer = PAID_OFFERS_BY_ID[plan];
     if (!offer) return res.status(400).json({ error: 'خطة غير معروفة' });
+    if ((await getSetting('ALLOW_DEMO_SUBSCRIPTIONS')) !== 'true') {
+      return res.status(403).json({
+        error: 'الدفع الإلكتروني غير متاح بعد. سيتم تفعيل الاشتراكات المدفوعة قريباً.',
+        code: 'PAYMENTS_UNAVAILABLE',
+      });
+    }
 
     const expiresAt = new Date(
       Date.now() + offer.durationDays * 24 * 60 * 60 * 1000

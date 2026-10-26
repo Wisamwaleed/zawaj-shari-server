@@ -12,6 +12,8 @@ const DEFAULTS = {
   ADS_DAILY_LIMIT: '10',
   ADS_COOLDOWN_SECONDS: '60',
   ADS_REQUIRE_SSV: 'false',
+  // تفعيل خطط مدفوعة بلا دفع (تجريبي فقط) - انظر subscription.routes.js
+  ALLOW_DEMO_SUBSCRIPTIONS: 'false',
 };
 
 const CACHE_TTL_MS = 15_000; // يكفي لتقليل الضغط على القاعدة دون تأخير ملموس عند تغيير إعداد

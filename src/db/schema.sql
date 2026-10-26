@@ -198,5 +198,6 @@ INSERT INTO app_settings (key, value) VALUES
   ('ADS_ENABLED', 'true'),
   ('ADS_DAILY_LIMIT', '10'),
   ('ADS_COOLDOWN_SECONDS', '60'),
-  ('ADS_REQUIRE_SSV', 'false')
+  ('ADS_REQUIRE_SSV', 'false'),
+  ('ALLOW_DEMO_SUBSCRIPTIONS', 'false')
 ON CONFLICT (key) DO NOTHING;
