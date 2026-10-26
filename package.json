@@ -6,6 +6,7 @@
   "description": "خادم منصة زواج شرعي",
   "main": "src/index.js",
   "scripts": {
+    "prestart": "node src/db/migrate.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js",
