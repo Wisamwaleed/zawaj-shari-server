@@ -90,6 +90,8 @@ app.get('/api/version', (req, res) =>
   res.json({
     bootedAt,
     maxPhotoUploadMB: Math.round(MAX_PHOTO_BYTES / (1024 * 1024)),
+    // مؤقت لتشخيص trust proxy - عنوان الطالب نفسه فقط.
+    ipDiag: { ip: req.ip, xff: req.headers['x-forwarded-for'], xRealIp: req.headers['x-real-ip'] },
   })
 );
 
