@@ -180,6 +180,19 @@ CREATE TABLE IF NOT EXISTS ad_rewards (
 
 CREATE INDEX IF NOT EXISTS idx_ad_rewards_user_claimed ON ad_rewards(user_id, claimed_at DESC);
 
+-- رسائل نموذج «تواصل معنا» في الموقع (/contact) - تُعرض في لوحة الإدارة.
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  email      TEXT NOT NULL,
+  message    TEXT NOT NULL,
+  ip         TEXT,
+  is_read    BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
+
 -- إعدادات عامة للتطبيق يُعدَّلها المطوّر مباشرة (key/value، كل القيم نصوص).
 -- انظر src/services/settings.js لقائمة المفاتيح المعروفة وقيمها الافتراضية.
 CREATE TABLE IF NOT EXISTS app_settings (

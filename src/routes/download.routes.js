@@ -1,117 +1,78 @@
 import { Router } from 'express';
 import { getSettings } from '../services/settings.js';
-import { webColors as c } from '../constants/theme.js';
 import { getObjectStream } from '../services/storage.js';
+import { renderPage, escapeHtml, IOS_NOTE } from '../web/layout.js';
 
 const router = Router();
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[c]));
-}
+const downloadCss = `
+  .narrow { max-width: 520px; margin: 0 auto; padding: 40px 16px 0; text-align: center; }
+  .icon { width: 96px; height: 96px; border-radius: 24px; }
+  h1 { color: var(--gold); font-size: 28px; margin: 14px 0 4px; }
+  .version { display: inline-block; font-size: 13px; padding: 3px 12px; border-radius: 999px;
+    background: rgba(212,175,55,0.15); color: var(--gold); margin-bottom: 22px; }
+  .dl .btn { width: 100%; font-size: 18px; padding: 16px; }
+  .note { font-size: 13px; margin: 10px 0 0; }
+  .card { text-align: right; margin-top: 22px; }
+  .card h2 { color: var(--gold); font-size: 18px; margin: 0 0 10px; }
+  ol { margin: 0; padding-inline-start: 22px; }
+  ol li { margin-bottom: 8px; font-size: 14.5px; }
+  .safe { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+  .changelog { white-space: pre-wrap; font-size: 14px; margin: 0; }
+`;
 
-/** صفحة تنزيل عامة بألوان التطبيق - الرابط الوحيد الذي يُنشَر للناس (لا متجر). */
+/** صفحة التنزيل - الرابط المنشور للناس (لا متجر). */
 router.get('/', async (req, res, next) => {
   try {
     const s = await getSettings();
     const apkUrl = s.APK_URL || '';
+    const version = s.LATEST_VERSION_NAME || '';
     const changelog = escapeHtml(s.CHANGELOG || '');
-    // فيسبوك يحتاج روابط مطلقة لصورة المعاينة؛ نبنيها من الدومين الذي طُلبت منه الصفحة.
-    const origin = `https://${escapeHtml(req.get('host'))}`;
-    const ogTitle = 'زواج شرعي - تطبيق تعارف للزواج الجاد';
-    const ogDesc = 'منصة تعارف زواج جدية ومحافظة. الصور مخفية حتى القبول، والمحادثة بعد الموافقة فقط. حمّل التطبيق مجاناً لأندرويد.';
 
-    res.type('html').send(`<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>زواج شرعي - تحميل التطبيق</title>
-<meta name="description" content="${ogDesc}" />
-<meta property="og:type" content="website" />
-<meta property="og:locale" content="ar_AR" />
-<meta property="og:site_name" content="زواج شرعي" />
-<meta property="og:title" content="${ogTitle}" />
-<meta property="og:description" content="${ogDesc}" />
-<meta property="og:url" content="${origin}/download" />
-<meta property="og:image" content="${origin}/icon.png" />
-<meta name="twitter:card" content="summary" />
-<link rel="icon" href="/icon.png" />
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh;
-    background: ${c.bg};
-    color: ${c.text};
-    font-family: -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
-    display: flex; align-items: center; justify-content: center;
-    padding: 32px 16px;
-  }
-  .card {
-    width: 100%; max-width: 440px;
-    background: ${c.surface};
-    border: 1px solid ${c.border};
-    border-radius: 24px;
-    padding: 32px 24px;
-    text-align: center;
-  }
-  .icon {
-    width: 96px; height: 96px; border-radius: 24px;
-    margin-bottom: 16px;
-  }
-  h1 { font-size: 22px; margin: 0 0 8px; color: ${c.gold}; }
-  p.desc { font-size: 14px; color: ${c.textSoft}; line-height: 1.7; margin: 0 0 24px; }
-  .btn {
-    display: inline-block; width: 100%;
-    background: ${c.gold}; color: ${c.inkOnGold};
-    font-weight: 800; font-size: 16px;
-    padding: 16px; border-radius: 999px;
-    text-decoration: none;
-    margin-bottom: 8px;
-  }
-  .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
-  .note { font-size: 12px; color: ${c.textSoft}; margin-bottom: 24px; }
-  .changelog {
-    text-align: right; background: rgba(0,0,0,0.3);
-    border-radius: 12px; padding: 14px 16px; margin-bottom: 24px;
-    font-size: 13px; line-height: 1.8; white-space: pre-wrap;
-  }
-  .steps { text-align: right; font-size: 13px; line-height: 2; color: ${c.text}; }
-  .steps b { color: ${c.gold}; }
-  .legal { margin-top: 20px; font-size: 12px; color: ${c.textSoft}; }
-  .legal a { color: ${c.textSoft}; text-decoration: underline; }
-</style>
-</head>
-<body>
-  <div class="card">
-    <img class="icon" src="/icon.png" alt="زواج شرعي" />
-    <h1>زواج شرعي</h1>
-    <p class="desc">منصة تعارف زواج جدية ومحافظة. نزّل أحدث نسخة من التطبيق مباشرة من هنا.</p>
+    const body = `
+<div class="narrow">
+  <img class="icon" src="/icon.png" alt="أيقونة تطبيق زواج شرعي" width="96" height="96" />
+  <h1>تحميل تطبيق زواج شرعي</h1>
+  ${version ? `<div class="version">الإصدار ${escapeHtml(version)} · أندرويد</div>` : '<div class="version">أندرويد</div>'}
 
+  <div class="dl android-only">
     ${apkUrl
       ? `<a class="btn" href="${escapeHtml(apkUrl)}">تحميل التطبيق</a>`
-      : `<span class="btn" aria-disabled="true">التحميل غير متاح حالياً</span>`}
-    <div class="note">ملف APK لأجهزة أندرويد - لا حاجة لمتجر Google Play</div>
-
-    ${changelog ? `<div class="changelog">${changelog}</div>` : ''}
-
-    <div class="steps">
-      <div><b>1.</b> اضغط «تحميل التطبيق» وانتظر اكتمال التنزيل.</div>
-      <div><b>2.</b> افتح الملف من شريط الإشعارات أو من مجلد التنزيلات.</div>
-      <div><b>3.</b> إذا ظهرت رسالة تمنع التثبيت، اذهب إلى: الإعدادات ← الأمان (أو التطبيقات) ← السماح بالتثبيت من هذا المصدر.</div>
-      <div><b>4.</b> ارجع وافتح الملف مجدداً واضغط «تثبيت».</div>
-    </div>
-
-    <div class="legal"><a href="/privacy">سياسة الخصوصية</a> &nbsp;·&nbsp; <a href="/terms">الشروط والأحكام</a></div>
+      : '<span class="btn" aria-disabled="true">التحميل غير متاح حالياً</span>'}
+    <p class="note muted">ملف APK لأجهزة أندرويد - لا حاجة لمتجر Google Play</p>
   </div>
-</body>
-</html>`);
+  ${IOS_NOTE}
+
+  <div class="card">
+    <h2>خطوات التثبيت</h2>
+    <ol>
+      <li>اضغط «تحميل التطبيق» وانتظر اكتمال التنزيل.</li>
+      <li>افتح الملف من شريط الإشعارات أو من مجلد التنزيلات.</li>
+      <li>إذا ظهرت رسالة تمنع التثبيت، اذهب إلى: الإعدادات ← الأمان (أو التطبيقات) ← السماح بالتثبيت من هذا المصدر.</li>
+      <li>ارجع وافتح الملف مجدداً واضغط «تثبيت».</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="safe"><span aria-hidden="true">🛡️</span>
+      <div>قد يظهر لك تحذير عند التنزيل أو التثبيت. <b>التحذير طبيعي لأن التطبيق خارج المتجر، والتطبيق آمن.</b></div>
+    </div>
+  </div>
+
+  ${changelog ? `<div class="card"><h2>ما الجديد${version ? ` في ${escapeHtml(version)}` : ''}</h2><p class="changelog">${changelog}</p></div>` : ''}
+</div>`;
+
+    res.type('html').send(
+      renderPage({
+        req,
+        title: 'تحميل التطبيق',
+        path: '/download',
+        description: `حمّل تطبيق زواج شرعي لأندرويد مجاناً${version ? ` - الإصدار ${version}` : ''}. تطبيق للزواج الجاد وفق الضوابط الشرعية.`,
+        body,
+        css: downloadCss,
+        topbarCta: false,
+      })
+    );
   } catch (err) {
     next(err);
   }

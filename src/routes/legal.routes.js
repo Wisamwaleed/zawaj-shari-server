@@ -1,49 +1,37 @@
 import { Router } from 'express';
-import { webColors as c } from '../constants/theme.js';
+import { renderPage } from '../web/layout.js';
 
 const router = Router();
 
-function page(title, bodyHtml) {
-  return `<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>زواج شرعي - ${title}</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh;
-    background: ${c.bg};
-    color: ${c.text};
-    font-family: -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
-    padding: 32px 16px 64px;
-  }
-  .wrap { max-width: 640px; margin: 0 auto; }
-  h1 { font-size: 24px; color: ${c.gold}; margin: 0 0 24px; text-align: center; }
-  h2 { font-size: 17px; color: ${c.gold}; margin: 28px 0 8px; }
-  p, li { font-size: 14.5px; line-height: 1.9; color: ${c.text}; }
+const legalCss = `
+  .wrap { max-width: 680px; margin: 0 auto; padding: 40px 16px 0; }
+  h1 { font-size: 28px; color: var(--gold); margin: 0 0 6px; text-align: center; }
+  h2 { font-size: 18px; color: var(--gold); margin: 28px 0 8px; }
+  p, li { font-size: 15px; line-height: 1.9; }
   ul { padding-inline-start: 20px; margin: 8px 0; }
-  .updated { text-align: center; color: ${c.textSoft}; font-size: 12px; margin-bottom: 8px; }
-  a { color: ${c.gold}; }
-  .back { display: block; text-align: center; margin-top: 36px; }
-</style>
-</head>
-<body>
-  <div class="wrap">
+  .updated { text-align: center; color: var(--soft); font-size: 12px; margin-bottom: 8px; }
+`;
+
+function page(req, path, title, bodyHtml) {
+  return renderPage({
+    req,
+    title,
+    path,
+    description: `${title} لتطبيق زواج شرعي.`,
+    css: legalCss,
+    body: `<div class="wrap">
     <h1>${title}</h1>
     <div class="updated">آخر تحديث: 2026</div>
     ${bodyHtml}
-    <a class="back" href="/download">← العودة لصفحة التطبيق</a>
-  </div>
-</body>
-</html>`;
+  </div>`,
+  });
 }
 
 router.get('/privacy', (req, res) => {
   res.type('html').send(
     page(
+      req,
+      '/privacy',
       'سياسة الخصوصية',
       `
     <p>تطبيق «زواج شرعي» منصة تعارف جادة بهدف الزواج الشرعي. نأخذ خصوصيتك على محمل الجد، وهذه الصفحة توضّح البيانات التي نجمعها وكيف نستخدمها ونحميها.</p>
@@ -84,6 +72,8 @@ router.get('/privacy', (req, res) => {
 router.get('/terms', (req, res) => {
   res.type('html').send(
     page(
+      req,
+      '/terms',
       'الشروط والأحكام',
       `
     <p>باستخدامك تطبيق «زواج شرعي» فإنك توافق على الشروط التالية. يرجى قراءتها بعناية.</p>

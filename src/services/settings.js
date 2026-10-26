@@ -5,6 +5,7 @@ const DEFAULTS = {
   FREE_MODE: 'true',
   MIN_VERSION_CODE: '1',
   LATEST_VERSION_CODE: '1',
+  LATEST_VERSION_NAME: '', // رقم الإصدار المعروض في صفحة التنزيل (مثل 1.3.0)
   APK_URL: '',
   APK_R2_KEY: '', // مفتاح ملف APK في R2 - يُبث عبر /download/zawaj-shari.apk
   CHANGELOG: '',

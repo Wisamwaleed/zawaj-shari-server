@@ -7,16 +7,44 @@ const REPORT_STATUSES = ['pending', 'resolved', 'dismissed'];
 /** أرقام سريعة لأعلى لوحة الإدارة. */
 router.get('/stats', async (req, res, next) => {
   try {
-    const [users, pendingReports, bannedUsers] = await Promise.all([
+    const [users, pendingReports, bannedUsers, unreadMessages] = await Promise.all([
       query('SELECT count(*)::int AS n FROM users'),
       query("SELECT count(*)::int AS n FROM reports WHERE status = 'pending'"),
       query('SELECT count(*)::int AS n FROM users WHERE is_banned'),
+      query('SELECT count(*)::int AS n FROM contact_messages WHERE NOT is_read'),
     ]);
     res.json({
       totalUsers: users.rows[0].n,
       pendingReports: pendingReports.rows[0].n,
       bannedUsers: bannedUsers.rows[0].n,
+      unreadMessages: unreadMessages.rows[0].n,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** رسائل نموذج «تواصل معنا». ?filter=unread|all (افتراضي unread) */
+router.get('/contact-messages', async (req, res, next) => {
+  try {
+    const unreadOnly = String(req.query.filter || 'unread') !== 'all';
+    const { rows } = await query(
+      `SELECT id, name, email, message, is_read, created_at FROM contact_messages
+       ${unreadOnly ? 'WHERE NOT is_read' : ''}
+       ORDER BY created_at DESC
+       LIMIT 200`
+    );
+    res.json({ messages: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** تعليم رسالة كمقروءة. */
+router.post('/contact-messages/:id/read', async (req, res, next) => {
+  try {
+    await query('UPDATE contact_messages SET is_read = true WHERE id = $1', [Number(req.params.id)]);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -40,8 +40,8 @@
   button.danger { background: #E11D48; color: #fff; }
   button:disabled { opacity: 0.5; cursor: default; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .stats { display: flex; gap: 12px; margin-bottom: 8px; }
-  .stat { flex: 1; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px; text-align: center; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+  .stat { flex: 1 1 140px; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px; text-align: center; }
   .stat b { display: block; font-size: 22px; color: #D4AF37; }
   .stat span { font-size: 12px; color: #A8A29E; }
   .item { border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 0; }
@@ -74,6 +74,19 @@
       <div class="stat"><b id="statUsers">-</b><span>إجمالي المستخدمين</span></div>
       <div class="stat"><b id="statPending">-</b><span>بلاغات قيد المراجعة</span></div>
       <div class="stat"><b id="statBanned">-</b><span>حسابات موقَفة</span></div>
+      <div class="stat"><b id="statMessages">-</b><span>رسائل غير مقروءة</span></div>
+    </div>
+
+    <h2>رسائل «تواصل معنا»</h2>
+    <div class="card">
+      <div class="row">
+        <select id="messagesFilter" onchange="loadMessages()" style="width:auto;">
+          <option value="unread">غير المقروءة</option>
+          <option value="all">الكل</option>
+        </select>
+        <button class="secondary" onclick="loadMessages()">تحديث</button>
+      </div>
+      <div id="messagesList"></div>
     </div>
 
     <h2>البلاغات</h2>
@@ -167,6 +180,7 @@
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     loadReports();
+    loadMessages();
   }
 
   function logout() {
@@ -180,6 +194,7 @@
     document.getElementById('statUsers').textContent = s.totalUsers;
     document.getElementById('statPending').textContent = s.pendingReports;
     document.getElementById('statBanned').textContent = s.bannedUsers;
+    document.getElementById('statMessages').textContent = s.unreadMessages;
   }
 
   async function loadReports() {
@@ -195,6 +210,45 @@
       el.innerHTML = r.reports.map(renderReport).join('');
     } catch (e) {
       el.innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    }
+  }
+
+  async function loadMessages() {
+    var filter = document.getElementById('messagesFilter').value;
+    var el = document.getElementById('messagesList');
+    el.innerHTML = '<p class="muted">جارِ التحميل...</p>';
+    try {
+      var r = await api('/admin/contact-messages?filter=' + encodeURIComponent(filter));
+      if (!r.messages.length) {
+        el.innerHTML = '<p class="muted">لا توجد رسائل.</p>';
+        return;
+      }
+      el.innerHTML = r.messages.map(function (m) {
+        var when = new Date(m.created_at).toLocaleString('ar');
+        var action = m.is_read
+          ? '<span class="badge">مقروءة</span>'
+          : '<button class="secondary" onclick="markMessageRead(' + m.id + ')">تعليم كمقروءة</button>';
+        var reply = '<a href="mailto:' + encodeURIComponent(m.email) + '?subject=' +
+          encodeURIComponent('رد من زواج شرعي') + '"><button>رد بالبريد</button></a>';
+        return '<div class="item">' +
+          '<div class="muted">' + when + '</div>' +
+          '<div><b>' + escapeHtml(m.name) + '</b> (' + escapeHtml(m.email) + ')</div>' +
+          '<div style="margin:6px 0;white-space:pre-wrap;">' + escapeHtml(m.message) + '</div>' +
+          '<div class="row">' + reply + action + '</div>' +
+        '</div>';
+      }).join('');
+    } catch (e) {
+      el.innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    }
+  }
+
+  async function markMessageRead(id) {
+    try {
+      await api('/admin/contact-messages/' + id + '/read', { method: 'POST' });
+      loadMessages();
+      loadStats();
+    } catch (e) {
+      alert(e.message);
     }
   }
 
