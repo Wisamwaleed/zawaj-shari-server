@@ -28,10 +28,11 @@ import adsRoutes from './routes/ads.routes.js';
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
-// Railway يمرّر كل الطلبات عبر وسيط واحد: بلا هذا يرى السيرفر عنوان الوسيط لكل
-// المستخدمين، فيعاملهم حدّ الطلبات كشخص واحد (10 محاولات دخول تمنع الجميع).
-// 1 = نثق بوسيط واحد فقط، فلا يمكن تزوير العنوان عبر X-Forwarded-For.
-app.set('trust proxy', 1);
+// الطلب يمرّ عبر وسيطين: حافة CDN (عنوانها يتغيّر مع كل طلب) ثم Railway.
+// بلا هذا يرى السيرفر عنوان الوسيط لكل المستخدمين، فيعاملهم حدّ الطلبات كشخص
+// واحد (10 محاولات دخول تمنع الجميع). 2 = العنوان قبل الوسيطين = المستخدم الحقيقي.
+// (مُتحقَّق منه: الحافة تتجاهل X-Forwarded-For المزوَّر من العميل وتعيد كتابته.)
+app.set('trust proxy', 2);
 
 app.use(cors({ origin: config.clientOrigin }));
 app.use(express.json());
@@ -90,8 +91,6 @@ app.get('/api/version', (req, res) =>
   res.json({
     bootedAt,
     maxPhotoUploadMB: Math.round(MAX_PHOTO_BYTES / (1024 * 1024)),
-    // مؤقت لتشخيص trust proxy - عنوان الطالب نفسه فقط.
-    ipDiag: { ip: req.ip, xff: req.headers['x-forwarded-for'], xRealIp: req.headers['x-real-ip'] },
   })
 );
 
