@@ -14,9 +14,15 @@ const router = Router();
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+// نسخ التطبيق القديمة لا تطلب إلا الصفحة الأولى ولا ترسل page أصلاً، فكانت تعرض
+// 20 ملفاً فقط للأبد. بلا page نعيد دفعة كبيرة واحدة بدل 20 حتى تعمل تلك النسخ.
+const LEGACY_PAGE_SIZE = 200;
 
 /** page (1-based) + pageSize من query، بحدود معقولة تمنع طلب صفحة ضخمة دفعة واحدة. */
 function parsePagination(q) {
+  if (q.page === undefined && q.pageSize === undefined) {
+    return { page: 1, pageSize: LEGACY_PAGE_SIZE, offset: 0 };
+  }
   const page = Math.max(1, parseInt(q.page, 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(q.pageSize, 10) || DEFAULT_PAGE_SIZE));
   return { page, pageSize, offset: (page - 1) * pageSize };
