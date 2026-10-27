@@ -19,7 +19,13 @@ const downloadCss = `
   ol li { margin-bottom: 8px; font-size: 14.5px; }
   .safe { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
   .changelog { white-space: pre-wrap; font-size: 14px; margin: 0; }
+  .invite { text-align: center; margin: 0 0 22px; border-color: var(--gold); }
+  .invite .code { font-size: 28px; font-weight: 800; letter-spacing: 4px; color: var(--gold); margin: 8px 0; direction: ltr; }
+  .invite .btn { margin-top: 10px; }
 `;
+
+// كود دعوة من رابط المشاركة (?ref=) - نفس أبجدية generateReferralCode.
+const REF_RE = /^[A-Z0-9]{4,12}$/;
 
 /** صفحة التنزيل - الرابط المنشور للناس (لا متجر). */
 router.get('/', async (req, res, next) => {
@@ -28,13 +34,22 @@ router.get('/', async (req, res, next) => {
     const apkUrl = s.APK_URL || '';
     const version = s.LATEST_VERSION_NAME || '';
     const changelog = escapeHtml(s.CHANGELOG || '');
+    const ref = String(req.query.ref || '').trim().toUpperCase();
+    const invite = REF_RE.test(ref)
+      ? `<div class="card invite">
+    <div>🎁 صديقك دعاك إلى زواج شرعي</div>
+    <div class="code">${ref}</div>
+    <div class="muted">بعد تثبيت التطبيق اضغط الزر أدناه ليُضاف الكود تلقائياً عند التسجيل، أو اكتبه بنفسك في خانة «كود الدعوة».</div>
+    <a class="btn android-only" href="zawajshari://register?ref=${ref}">افتح التطبيق بالكود</a>
+  </div>`
+      : '';
 
     const body = `
 <div class="narrow">
   <img class="icon" src="/icon.png" alt="أيقونة تطبيق زواج شرعي" width="96" height="96" />
   <h1>تحميل تطبيق زواج شرعي</h1>
   ${version ? `<div class="version">الإصدار ${escapeHtml(version)} · أندرويد</div>` : '<div class="version">أندرويد</div>'}
-
+  ${invite}
   <div class="dl android-only">
     ${apkUrl
       ? `<a class="btn" href="${escapeHtml(apkUrl)}">تحميل التطبيق</a>`

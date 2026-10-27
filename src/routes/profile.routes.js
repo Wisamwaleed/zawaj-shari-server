@@ -4,6 +4,7 @@ import { authRequired } from '../middleware/auth.js';
 import { uploadPhoto, MAX_PHOTO_BYTES } from '../middleware/upload.js';
 import { processPhoto } from '../services/photoProcessing.js';
 import { putObject, storageBackend } from '../services/storage.js';
+import { qualifyReferral } from '../services/referrals.js';
 import {
   GENDERS,
   RELIGIOUS_LEVELS,
@@ -118,6 +119,8 @@ router.put('/me', authRequired, async (req, res, next) => {
                  (photo_path IS NOT NULL) AS has_photo, updated_at`,
       values
     );
+    // إكمال الملف أحد شروط مكافأة الدعوة لمن دعا هذا المستخدم (تُمنح مرة واحدة فقط).
+    await qualifyReferral(req.userId);
     res.json({ profile: rows[0] });
   } catch (err) {
     next(err);

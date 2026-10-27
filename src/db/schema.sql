@@ -193,6 +193,22 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
 
+-- مكافأة الدعوة (مرة واحدة لكل مستخدم) لا تُمنح عند التسجيل بالكود، بل حين يُكمل
+-- المدعوّ ملفه من جهاز جديد. device_id = معرّف الجهاز (Android ID) الذي أُنشئ منه الحساب.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id TEXT;
+-- على users لا على referral_rewards: يبقى حتى لو حذف المدعوّ حسابه (CASCADE)،
+-- فلا يمكن الحصول على المكافأة مرة ثانية بحذف الصديق ودعوة غيره.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMPTZ;
+-- متى رأى الداعي رسالة «صديقك انضم» داخل التطبيق (NULL = لم تُعرض بعد).
+ALTER TABLE referral_rewards ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+-- كل جهاز يُحتسب «صديقاً جديداً» مرة واحدة إلى الأبد - حتى لو حُذف حسابه وأُنشئ غيره
+-- على نفس الهاتف. بلا هذا يمكن تكرار المكافأة بإعادة إنشاء الحسابات على هاتف واحد.
+CREATE TABLE IF NOT EXISTS referral_devices (
+  device_id  TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- إعدادات عامة للتطبيق يُعدَّلها المطوّر مباشرة (key/value، كل القيم نصوص).
 -- انظر src/services/settings.js لقائمة المفاتيح المعروفة وقيمها الافتراضية.
 CREATE TABLE IF NOT EXISTS app_settings (

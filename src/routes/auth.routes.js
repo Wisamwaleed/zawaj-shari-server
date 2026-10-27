@@ -3,7 +3,14 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db/pool.js';
 import { signToken } from '../utils/jwt.js';
 import { authRequired } from '../middleware/auth.js';
-import { generateReferralCode, applyReferralCode, referralStats } from '../services/referrals.js';
+import {
+  generateReferralCode,
+  applyReferralCode,
+  referralStats,
+  qualifyReferral,
+  ackReferralReward,
+  deviceIdFrom,
+} from '../services/referrals.js';
 import { deleteObject } from '../services/storage.js';
 
 const router = Router();
@@ -30,9 +37,9 @@ router.post('/register', async (req, res, next) => {
     const referralCode = String(req.body?.referralCode || '').trim();
     const myReferralCode = await generateReferralCode();
     const { rows } = await query(
-      `INSERT INTO users (email, password_hash, referral_code, age_confirmed_at)
-       VALUES ($1, $2, $3, now()) RETURNING id, email`,
-      [email, passwordHash, myReferralCode]
+      `INSERT INTO users (email, password_hash, referral_code, age_confirmed_at, device_id)
+       VALUES ($1, $2, $3, now(), $4) RETURNING id, email`,
+      [email, passwordHash, myReferralCode, deviceIdFrom(req)]
     );
     const user = rows[0];
     await query('INSERT INTO profiles (user_id) VALUES ($1)', [user.id]);
@@ -57,6 +64,11 @@ router.post('/login', async (req, res, next) => {
     if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
     if (user.is_banned)
       return res.status(403).json({ error: 'تم إيقاف هذا الحساب', code: 'BANNED' });
+
+    // حسابات أُنشئت قبل إرسال معرّف الجهاز: نسجّل أول جهاز يُدخل منه (لا نستبدله لاحقاً).
+    const deviceId = deviceIdFrom(req);
+    if (deviceId)
+      await query('UPDATE users SET device_id = $1 WHERE id = $2 AND device_id IS NULL', [deviceId, user.id]);
 
     res.json({ token: signToken(user.id), user: { id: user.id, email: user.email } });
   } catch (err) {
@@ -99,8 +111,21 @@ router.get('/me', authRequired, async (req, res, next) => {
         req.userId,
       ]);
     }
+    const deviceId = deviceIdFrom(req);
+    if (user && deviceId)
+      await query('UPDATE users SET device_id = $1 WHERE id = $2 AND device_id IS NULL', [deviceId, req.userId]);
     const stats = user ? await referralStats(req.userId) : null;
     res.json({ user: user && stats ? { ...user, ...stats } : user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** الداعي رأى رسالة «صديقك انضم وحصلت على Platinum» - لا تُعرض مجدداً. */
+router.post('/referral-reward/ack', authRequired, async (req, res, next) => {
+  try {
+    await ackReferralReward(req.userId);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -116,6 +141,8 @@ router.post('/pledge', authRequired, async (req, res, next) => {
        RETURNING pledge_accepted_at`,
       [req.userId]
     );
+    // التعهّد أحد شروط مكافأة الدعوة - إن كان الملف مكتملاً قبله تُمنح الآن.
+    await qualifyReferral(req.userId);
     res.json({
       pledge_accepted: true,
       pledge_accepted_at: rows[0].pledge_accepted_at,
