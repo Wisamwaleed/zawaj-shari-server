@@ -14,7 +14,8 @@
     font-family: -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
   }
   .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
-  h1 { color: #D4AF37; font-size: 22px; margin: 0 0 20px; text-align: center; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { color: #D4AF37; font-size: 22px; margin: 0; }
   h2 { color: #D4AF37; font-size: 16px; margin: 28px 0 10px; }
   .card {
     background: rgba(255,255,255,0.04);
@@ -38,6 +39,7 @@
   }
   button.secondary { background: rgba(255,255,255,0.1); color: #F5F0E6; }
   button.danger { background: #E11D48; color: #fff; }
+  button.lang { background: transparent; color: #D4AF37; border: 1px solid rgba(212,175,55,0.5); flex-shrink: 0; }
   button:disabled { opacity: 0.5; cursor: default; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
@@ -51,7 +53,7 @@
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(212,175,55,0.2); color: #D4AF37; }
   .badge.banned { background: rgba(179,70,58,0.3); color: #ff8a80; }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  td, th { text-align: right; padding: 8px 6px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  td, th { text-align: start; padding: 8px 6px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   #app { display: none; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
   .ph { background: rgba(0,0,0,0.3); border: 1px solid rgba(212,175,55,0.2); border-radius: 12px; overflow: hidden; }
@@ -66,95 +68,259 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>لوحة إدارة - زواج شرعي</h1>
+  <div class="topbar">
+    <h1 data-i18n="title"></h1>
+    <button class="lang" id="langBtn" onclick="toggleLang()"></button>
+  </div>
 
   <div id="login" class="card" style="max-width:360px;margin:0 auto;">
-    <h2 style="margin-top:0;">تسجيل دخول المشرف</h2>
+    <h2 style="margin-top:0;" data-i18n="loginTitle"></h2>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:10px;">
-      <input id="loginEmail" type="email" placeholder="البريد الإلكتروني" autocomplete="username" />
-      <input id="loginPassword" type="password" placeholder="كلمة المرور" autocomplete="current-password" />
-      <button onclick="doLogin()">دخول</button>
+      <input id="loginEmail" type="email" data-i18n-placeholder="email" autocomplete="username" dir="ltr" />
+      <input id="loginPassword" type="password" data-i18n-placeholder="password" autocomplete="current-password" />
+      <button onclick="doLogin()" data-i18n="signIn"></button>
     </div>
     <div id="loginError" class="error"></div>
   </div>
 
   <div id="app">
     <div class="stats">
-      <div class="stat"><b id="statUsers">-</b><span>إجمالي المستخدمين</span></div>
-      <div class="stat"><b id="statPending">-</b><span>بلاغات قيد المراجعة</span></div>
-      <div class="stat"><b id="statBanned">-</b><span>حسابات موقَفة</span></div>
-      <div class="stat"><b id="statMessages">-</b><span>رسائل غير مقروءة</span></div>
+      <div class="stat"><b id="statUsers">-</b><span data-i18n="statUsers"></span></div>
+      <div class="stat"><b id="statPending">-</b><span data-i18n="statPending"></span></div>
+      <div class="stat"><b id="statBanned">-</b><span data-i18n="statBanned"></span></div>
+      <div class="stat"><b id="statMessages">-</b><span data-i18n="statMessages"></span></div>
     </div>
 
-    <h2>مراجعة الصور (الأحدث أولاً)</h2>
+    <h2 data-i18n="photosTitle"></h2>
     <div class="card">
       <div class="row">
-        <button class="secondary" onclick="loadPhotos(1)">تحديث</button>
-        <span class="muted">احذف أي صورة غير لائقة، أو أوقف الحساب إن تكرّر ذلك.</span>
+        <button class="secondary" onclick="loadPhotos(1)" data-i18n="refresh"></button>
+        <span class="muted" data-i18n="photosHint"></span>
       </div>
       <div id="photosGrid" class="grid"></div>
       <div class="row" style="justify-content:center;margin-top:12px;">
-        <button class="secondary" id="photosMore" style="display:none" onclick="loadPhotos(photosPage + 1)">المزيد</button>
+        <button class="secondary" id="photosMore" style="display:none" onclick="loadPhotos(photosPage + 1)" data-i18n="more"></button>
       </div>
     </div>
 
-    <h2>رسائل «تواصل معنا»</h2>
+    <h2 data-i18n="messagesTitle"></h2>
     <div class="card">
       <div class="row">
         <select id="messagesFilter" onchange="loadMessages()" style="width:auto;">
-          <option value="unread">غير المقروءة</option>
-          <option value="all">الكل</option>
+          <option value="unread" data-i18n="unread"></option>
+          <option value="all" data-i18n="all"></option>
         </select>
-        <button class="secondary" onclick="loadMessages()">تحديث</button>
+        <button class="secondary" onclick="loadMessages()" data-i18n="refresh"></button>
       </div>
       <div id="messagesList"></div>
     </div>
 
-    <h2>البلاغات</h2>
+    <h2 data-i18n="reportsTitle"></h2>
     <div class="card">
       <div class="row">
         <select id="reportStatus" onchange="loadReports()" style="width:auto;">
-          <option value="pending">قيد المراجعة</option>
-          <option value="resolved">تمت المعالجة</option>
-          <option value="dismissed">مرفوضة</option>
-          <option value="all">الكل</option>
+          <option value="pending" data-i18n="pending"></option>
+          <option value="resolved" data-i18n="resolved"></option>
+          <option value="dismissed" data-i18n="dismissed"></option>
+          <option value="all" data-i18n="all"></option>
         </select>
-        <button class="secondary" onclick="loadReports()">تحديث</button>
+        <button class="secondary" onclick="loadReports()" data-i18n="refresh"></button>
       </div>
       <div id="reportsList"></div>
     </div>
 
-    <h2>بحث المستخدمين</h2>
+    <h2 data-i18n="usersTitle"></h2>
     <div class="card">
       <div class="row">
-        <input id="userSearch" placeholder="بريد إلكتروني أو اسم..." onkeydown="if(event.key==='Enter')searchUsers()" />
-        <button onclick="searchUsers()">بحث</button>
+        <input id="userSearch" data-i18n-placeholder="searchPlaceholder" onkeydown="if(event.key==='Enter')searchUsers()" />
+        <button onclick="searchUsers()" data-i18n="search"></button>
       </div>
       <div id="usersList"></div>
     </div>
 
     <div class="row" style="justify-content:center;margin-top:30px;">
-      <button class="secondary" onclick="logout()">تسجيل الخروج</button>
+      <button class="secondary" onclick="logout()" data-i18n="logout"></button>
     </div>
   </div>
 </div>
 
 <div id="viewer" onclick="closeViewer()">
   <img id="viewerImg" alt="" />
-  <div class="muted">اضغط في أي مكان للإغلاق</div>
+  <div class="muted" data-i18n="tapToClose"></div>
 </div>
 
 <script>
+  var STRINGS = {
+    ar: {
+      pageTitle: 'زواج شرعي - لوحة الإدارة',
+      title: 'لوحة إدارة - زواج شرعي',
+      switchTo: 'English',
+      loginTitle: 'تسجيل دخول المشرف',
+      email: 'البريد الإلكتروني',
+      password: 'كلمة المرور',
+      signIn: 'دخول',
+      notAdmin: 'هذا الحساب لا يملك صلاحية إشراف.',
+      statUsers: 'إجمالي المستخدمين',
+      statPending: 'بلاغات قيد المراجعة',
+      statBanned: 'حسابات موقَفة',
+      statMessages: 'رسائل غير مقروءة',
+      photosTitle: 'مراجعة الصور (الأحدث أولاً)',
+      photosHint: 'احذف أي صورة غير لائقة، أو أوقف الحساب إن تكرّر ذلك.',
+      refresh: 'تحديث',
+      more: 'المزيد',
+      loading: 'جارِ التحميل...',
+      noPhotos: 'لا توجد صور.',
+      noPhoto: 'لا توجد صورة لهذا المستخدم.',
+      loadFailed: 'تعذّر التحميل',
+      deletePhoto: 'حذف الصورة',
+      confirmDeletePhoto: 'حذف صورة هذا المستخدم نهائياً؟',
+      photoDeleted: 'تم حذف الصورة.',
+      photo: 'الصورة',
+      female: 'أنثى',
+      male: 'ذكر',
+      ban: 'إيقاف',
+      banned: 'موقَف',
+      active: 'نشط',
+      unban: 'رفع الإيقاف',
+      banReason: 'سبب الإيقاف (اختياري):',
+      messagesTitle: 'رسائل «تواصل معنا»',
+      unread: 'غير المقروءة',
+      all: 'الكل',
+      noMessages: 'لا توجد رسائل.',
+      read: 'مقروءة',
+      markRead: 'تعليم كمقروءة',
+      replyEmail: 'رد بالبريد',
+      replySubject: 'رد من زواج شرعي',
+      reportsTitle: 'البلاغات',
+      pending: 'قيد المراجعة',
+      resolved: 'تمت المعالجة',
+      dismissed: 'مرفوضة',
+      noReports: 'لا توجد بلاغات.',
+      ignore: 'تجاهل',
+      category: 'فئة',
+      reporter: 'المُبلِّغ',
+      reported: 'المُبلَّغ عنه',
+      banReported: 'إيقاف المُبلَّغ عنه',
+      reportedPhoto: 'صورة المُبلَّغ عنه',
+      usersTitle: 'بحث المستخدمين',
+      searchPlaceholder: 'بريد إلكتروني أو اسم...',
+      search: 'بحث',
+      searching: 'جارِ البحث...',
+      noResults: 'لا نتائج.',
+      colName: 'الاسم',
+      colEmail: 'البريد',
+      colStatus: 'الحالة',
+      logout: 'تسجيل الخروج',
+      tapToClose: 'اضغط في أي مكان للإغلاق',
+      errorCode: 'خطأ',
+    },
+    en: {
+      pageTitle: 'Zawaj Shari - Admin Panel',
+      title: 'Admin Panel - Zawaj Shari',
+      switchTo: 'العربية',
+      loginTitle: 'Admin sign in',
+      email: 'Email',
+      password: 'Password',
+      signIn: 'Sign in',
+      notAdmin: 'This account does not have admin access.',
+      statUsers: 'Total users',
+      statPending: 'Reports pending review',
+      statBanned: 'Banned accounts',
+      statMessages: 'Unread messages',
+      photosTitle: 'Photo review (newest first)',
+      photosHint: 'Delete any inappropriate photo, or ban the account if it happens again.',
+      refresh: 'Refresh',
+      more: 'Load more',
+      loading: 'Loading...',
+      noPhotos: 'No photos.',
+      noPhoto: 'This user has no photo.',
+      loadFailed: 'Failed to load',
+      deletePhoto: 'Delete photo',
+      confirmDeletePhoto: "Permanently delete this user's photo?",
+      photoDeleted: 'Photo deleted.',
+      photo: 'Photo',
+      female: 'Female',
+      male: 'Male',
+      ban: 'Ban',
+      banned: 'Banned',
+      active: 'Active',
+      unban: 'Unban',
+      banReason: 'Ban reason (optional):',
+      messagesTitle: '"Contact us" messages',
+      unread: 'Unread',
+      all: 'All',
+      noMessages: 'No messages.',
+      read: 'Read',
+      markRead: 'Mark as read',
+      replyEmail: 'Reply by email',
+      replySubject: 'Reply from Zawaj Shari',
+      reportsTitle: 'Reports',
+      pending: 'Pending review',
+      resolved: 'Resolved',
+      dismissed: 'Dismissed',
+      noReports: 'No reports.',
+      ignore: 'Dismiss',
+      category: 'Category',
+      reporter: 'Reporter',
+      reported: 'Reported user',
+      banReported: 'Ban reported user',
+      reportedPhoto: "Reported user's photo",
+      usersTitle: 'User search',
+      searchPlaceholder: 'Email or name...',
+      search: 'Search',
+      searching: 'Searching...',
+      noResults: 'No results.',
+      colName: 'Name',
+      colEmail: 'Email',
+      colStatus: 'Status',
+      logout: 'Sign out',
+      tapToClose: 'Tap anywhere to close',
+      errorCode: 'Error',
+    },
+  };
+
+  var LANG_KEY = 'zawaj_admin_lang';
+  var lang = 'ar';
+  try { if (localStorage.getItem(LANG_KEY) === 'en') lang = 'en'; } catch (e) {}
+
+  function t(key) { return STRINGS[lang][key] || STRINGS.ar[key] || key; }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.title = t('pageTitle');
+    document.getElementById('langBtn').textContent = t('switchTo');
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+  }
+
+  function toggleLang() {
+    lang = lang === 'ar' ? 'en' : 'ar';
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+    // القوائم المعروضة تُبنى بالجافاسكربت - نعيد رسمها باللغة الجديدة.
+    if (document.getElementById('app').style.display === 'block') {
+      loadReports();
+      loadMessages();
+      loadPhotos(1);
+      if (document.getElementById('usersList').innerHTML) searchUsers();
+    }
+  }
+
   var TOKEN_KEY = 'zawaj_admin_token';
   function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
-  function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+  function setToken(v) { localStorage.setItem(TOKEN_KEY, v); }
   function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
   async function api(path, opts) {
     opts = opts || {};
     var headers = { 'Content-Type': 'application/json' };
-    var t = getToken();
-    if (t) headers.Authorization = 'Bearer ' + t;
+    var tok = getToken();
+    if (tok) headers.Authorization = 'Bearer ' + tok;
     var res = await fetch('/api' + path, {
       method: opts.method || 'GET',
       headers: headers,
@@ -163,7 +329,7 @@
     var data = {};
     try { data = await res.json(); } catch (e) {}
     if (!res.ok) {
-      var err = new Error(data.error || ('خطأ ' + res.status));
+      var err = new Error(data.error || (t('errorCode') + ' ' + res.status));
       err.status = res.status;
       throw err;
     }
@@ -174,6 +340,10 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleString(lang === 'ar' ? 'ar' : 'en-GB');
   }
 
   async function doLogin() {
@@ -195,7 +365,7 @@
       await loadStats();
     } catch (e) {
       if (e.status === 403) {
-        document.getElementById('loginError').textContent = 'هذا الحساب لا يملك صلاحية إشراف.';
+        document.getElementById('loginError').textContent = t('notAdmin');
         clearToken();
         return;
       }
@@ -227,11 +397,11 @@
   async function loadReports() {
     var status = document.getElementById('reportStatus').value;
     var el = document.getElementById('reportsList');
-    el.innerHTML = '<p class="muted">جارِ التحميل...</p>';
+    el.innerHTML = '<p class="muted">' + t('loading') + '</p>';
     try {
       var r = await api('/admin/reports?status=' + encodeURIComponent(status));
       if (!r.reports.length) {
-        el.innerHTML = '<p class="muted">لا توجد بلاغات.</p>';
+        el.innerHTML = '<p class="muted">' + t('noReports') + '</p>';
         return;
       }
       el.innerHTML = r.reports.map(renderReport).join('');
@@ -254,7 +424,7 @@
 
   async function viewPhoto(userId) {
     var url = await photoUrl(userId);
-    if (!url) { alert('لا توجد صورة لهذا المستخدم.'); return; }
+    if (!url) { alert(t('noPhoto')); return; }
     document.getElementById('viewerImg').src = url;
     document.getElementById('viewer').style.display = 'flex';
   }
@@ -263,29 +433,30 @@
   var photosPage = 1;
   async function loadPhotos(page) {
     var grid = document.getElementById('photosGrid');
-    if (page === 1) grid.innerHTML = '<p class="muted">جارِ التحميل...</p>';
+    if (page === 1) grid.innerHTML = '<p class="muted">' + t('loading') + '</p>';
     try {
       var r = await api('/admin/photos?page=' + page);
       photosPage = page;
-      if (page === 1) grid.innerHTML = r.users.length ? '' : '<p class="muted">لا توجد صور.</p>';
+      if (page === 1) grid.innerHTML = r.users.length ? '' : '<p class="muted">' + t('noPhotos') + '</p>';
       r.users.forEach(function (u) {
         var el = document.createElement('div');
         el.className = 'ph';
         el.id = 'ph-' + u.id;
         var ban = u.is_banned
-          ? '<span class="badge banned">موقَف</span>'
-          : '<button class="danger" onclick="banUser(' + u.id + ')">إيقاف</button>';
+          ? '<span class="badge banned">' + t('banned') + '</span>'
+          : '<button class="danger" onclick="banUser(' + u.id + ')">' + t('ban') + '</button>';
+        var gender = u.gender === 'female' ? t('female') : u.gender === 'male' ? t('male') : '';
         el.innerHTML =
           '<div class="img" onclick="viewPhoto(' + u.id + ')">...</div>' +
           '<div class="meta"><b>' + escapeHtml(u.display_name || '-') + '</b>' +
-          escapeHtml([u.gender === 'female' ? 'أنثى' : u.gender === 'male' ? 'ذكر' : '', u.age, u.city].filter(Boolean).join(' · ')) +
+          escapeHtml([gender, u.age, u.city].filter(Boolean).join(' · ')) +
           '<div class="muted">' + escapeHtml(u.email) + '</div>' +
-          '<div class="row"><button class="secondary" onclick="deletePhoto(' + u.id + ')">حذف الصورة</button>' + ban + '</div></div>';
+          '<div class="row"><button class="secondary" onclick="deletePhoto(' + u.id + ')">' + t('deletePhoto') + '</button>' + ban + '</div></div>';
         grid.appendChild(el);
         photoUrl(u.id).then(function (url) {
           var box = el.querySelector('.img');
           if (url) { box.style.backgroundImage = 'url(' + url + ')'; box.textContent = ''; }
-          else box.textContent = 'تعذّر التحميل';
+          else box.textContent = t('loadFailed');
         });
       });
       document.getElementById('photosMore').style.display = r.hasMore ? 'inline-block' : 'none';
@@ -295,13 +466,13 @@
   }
 
   async function deletePhoto(userId) {
-    if (!confirm('حذف صورة هذا المستخدم نهائياً؟')) return;
+    if (!confirm(t('confirmDeletePhoto'))) return;
     try {
       await api('/admin/users/' + userId + '/photo', { method: 'DELETE' });
       delete photoUrls[userId];
       var el = document.getElementById('ph-' + userId);
       if (el) el.remove();
-      alert('تم حذف الصورة.');
+      alert(t('photoDeleted'));
     } catch (e) {
       alert(e.message);
     }
@@ -310,24 +481,23 @@
   async function loadMessages() {
     var filter = document.getElementById('messagesFilter').value;
     var el = document.getElementById('messagesList');
-    el.innerHTML = '<p class="muted">جارِ التحميل...</p>';
+    el.innerHTML = '<p class="muted">' + t('loading') + '</p>';
     try {
       var r = await api('/admin/contact-messages?filter=' + encodeURIComponent(filter));
       if (!r.messages.length) {
-        el.innerHTML = '<p class="muted">لا توجد رسائل.</p>';
+        el.innerHTML = '<p class="muted">' + t('noMessages') + '</p>';
         return;
       }
       el.innerHTML = r.messages.map(function (m) {
-        var when = new Date(m.created_at).toLocaleString('ar');
         var action = m.is_read
-          ? '<span class="badge">مقروءة</span>'
-          : '<button class="secondary" onclick="markMessageRead(' + m.id + ')">تعليم كمقروءة</button>';
+          ? '<span class="badge">' + t('read') + '</span>'
+          : '<button class="secondary" onclick="markMessageRead(' + m.id + ')">' + t('markRead') + '</button>';
         var reply = '<a href="mailto:' + encodeURIComponent(m.email) + '?subject=' +
-          encodeURIComponent('رد من زواج شرعي') + '"><button>رد بالبريد</button></a>';
+          encodeURIComponent(t('replySubject')) + '"><button>' + t('replyEmail') + '</button></a>';
         return '<div class="item">' +
-          '<div class="muted">' + when + '</div>' +
+          '<div class="muted">' + formatDate(m.created_at) + '</div>' +
           '<div><b>' + escapeHtml(m.name) + '</b> (' + escapeHtml(m.email) + ')</div>' +
-          '<div style="margin:6px 0;white-space:pre-wrap;">' + escapeHtml(m.message) + '</div>' +
+          '<div style="margin:6px 0;white-space:pre-wrap;" dir="auto">' + escapeHtml(m.message) + '</div>' +
           '<div class="row">' + reply + action + '</div>' +
         '</div>';
       }).join('');
@@ -347,21 +517,20 @@
   }
 
   function renderReport(r) {
-    var when = new Date(r.created_at).toLocaleString('ar');
     var actions = r.status === 'pending'
-      ? '<button onclick="resolveReport(' + r.id + ',\'resolved\')">تمت المعالجة</button>' +
-        '<button class="secondary" onclick="resolveReport(' + r.id + ',\'dismissed\')">تجاهل</button>'
-      : '<span class="badge">' + (r.status === 'resolved' ? 'تمت المعالجة' : 'مرفوضة') + '</span>';
+      ? '<button onclick="resolveReport(' + r.id + ',\'resolved\')">' + t('resolved') + '</button>' +
+        '<button class="secondary" onclick="resolveReport(' + r.id + ',\'dismissed\')">' + t('ignore') + '</button>'
+      : '<span class="badge">' + (r.status === 'resolved' ? t('resolved') : t('dismissed')) + '</span>';
     var banBtn = r.reported_is_banned
-      ? '<span class="badge banned">موقَف</span>'
-      : '<button class="danger" onclick="banUser(' + r.reported_id + ')">إيقاف المُبلَّغ عنه</button>';
+      ? '<span class="badge banned">' + t('banned') + '</span>'
+      : '<button class="danger" onclick="banUser(' + r.reported_id + ')">' + t('banReported') + '</button>';
     return '<div class="item">' +
-      '<div class="muted">' + when + ' · فئة: ' + escapeHtml(r.category || '-') + '</div>' +
-      '<div><b>المُبلِّغ:</b> ' + escapeHtml(r.reporter_name || '-') + ' (' + escapeHtml(r.reporter_email) + ')</div>' +
-      '<div><b>المُبلَّغ عنه:</b> ' + escapeHtml(r.reported_name || '-') + ' (' + escapeHtml(r.reported_email) + ')</div>' +
-      '<div style="margin:6px 0;">' + escapeHtml(r.reason || '') + '</div>' +
+      '<div class="muted">' + formatDate(r.created_at) + ' · ' + t('category') + ': ' + escapeHtml(r.category || '-') + '</div>' +
+      '<div><b>' + t('reporter') + ':</b> ' + escapeHtml(r.reporter_name || '-') + ' (' + escapeHtml(r.reporter_email) + ')</div>' +
+      '<div><b>' + t('reported') + ':</b> ' + escapeHtml(r.reported_name || '-') + ' (' + escapeHtml(r.reported_email) + ')</div>' +
+      '<div style="margin:6px 0;" dir="auto">' + escapeHtml(r.reason || '') + '</div>' +
       '<div class="row">' + actions + banBtn +
-        '<button class="secondary" onclick="viewPhoto(' + r.reported_id + ')">صورة المُبلَّغ عنه</button></div>' +
+        '<button class="secondary" onclick="viewPhoto(' + r.reported_id + ')">' + t('reportedPhoto') + '</button></div>' +
     '</div>';
   }
 
@@ -376,7 +545,7 @@
   }
 
   async function banUser(id) {
-    var reason = prompt('سبب الإيقاف (اختياري):') || '';
+    var reason = prompt(t('banReason')) || '';
     try {
       await api('/admin/users/' + id + '/ban', { method: 'POST', body: { reason: reason } });
       loadReports();
@@ -399,22 +568,25 @@
   async function searchUsers() {
     var q = document.getElementById('userSearch').value.trim();
     var el = document.getElementById('usersList');
-    el.innerHTML = '<p class="muted">جارِ البحث...</p>';
+    el.innerHTML = '<p class="muted">' + t('searching') + '</p>';
     try {
       var r = await api('/admin/users?q=' + encodeURIComponent(q));
       if (!r.users.length) {
-        el.innerHTML = '<p class="muted">لا نتائج.</p>';
+        el.innerHTML = '<p class="muted">' + t('noResults') + '</p>';
         return;
       }
-      el.innerHTML = '<table><thead><tr><th>الاسم</th><th>البريد</th><th>الحالة</th><th></th></tr></thead><tbody>' +
+      el.innerHTML = '<table><thead><tr><th>' + t('colName') + '</th><th>' + t('colEmail') + '</th><th>' +
+        t('colStatus') + '</th><th></th></tr></thead><tbody>' +
         r.users.map(function (u) {
-          var badge = u.is_banned ? '<span class="badge banned">موقَف</span>' : '<span class="badge">نشط</span>';
+          var badge = u.is_banned
+            ? '<span class="badge banned">' + t('banned') + '</span>'
+            : '<span class="badge">' + t('active') + '</span>';
           var btn = u.is_banned
-            ? '<button class="secondary" onclick="unbanUser(' + u.id + ')">رفع الإيقاف</button>'
-            : '<button class="danger" onclick="banUser(' + u.id + ')">إيقاف</button>';
+            ? '<button class="secondary" onclick="unbanUser(' + u.id + ')">' + t('unban') + '</button>'
+            : '<button class="danger" onclick="banUser(' + u.id + ')">' + t('ban') + '</button>';
           if (u.has_photo) {
-            btn += ' <button class="secondary" onclick="viewPhoto(' + u.id + ')">الصورة</button>' +
-              ' <button class="secondary" onclick="deletePhoto(' + u.id + ')">حذف الصورة</button>';
+            btn += ' <button class="secondary" onclick="viewPhoto(' + u.id + ')">' + t('photo') + '</button>' +
+              ' <button class="secondary" onclick="deletePhoto(' + u.id + ')">' + t('deletePhoto') + '</button>';
           }
           return '<tr><td>' + escapeHtml(u.display_name || '-') + '</td><td>' + escapeHtml(u.email) +
             '</td><td>' + badge + '</td><td>' + btn + '</td></tr>';
@@ -424,6 +596,7 @@
     }
   }
 
+  applyLang();
   if (getToken()) enterApp();
 </script>
 </body>
