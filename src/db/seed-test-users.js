@@ -8,8 +8,9 @@ import { RELIGIOUS_LEVELS } from '../services/relations.js';
  * الاستخدام: npm run seed-test-users [-- 200] [--refresh]
  *   --refresh: يعيد توليد بيانات الملفات (الأسماء والنبذة...) للحسابات الموجودة.
  *
- * حماية: يرفض العمل إلا على قاعدة اسمها zawaj_staging - لا يمكن أن يملأ قاعدة
- * الإنتاج (neondb) بحسابات وهمية يراها المستخدمون الحقيقيون ويراسلونها.
+ * حماية: يرفض العمل إلا على قاعدة اسمها zawaj_staging، إلا مع --allow-production
+ * صراحةً (مرحلة ما قبل الإطلاق حين كل مستخدمي الإنتاج هم الفريق نفسه). قبل فتح
+ * التطبيق للعامة يجب حذفها: npm run remove-test-users - وإلا يراسلها مستخدمون حقيقيون.
  * إعادة التشغيل آمنة: البريد فريد، والحسابات الموجودة تُتخطّى (أو تُحدَّث مع --refresh).
  * كل الحسابات: test.f001@test.zawajshari.org ... بكلمة مرور Test12345
  */
@@ -18,6 +19,7 @@ const ALLOWED_DB = 'zawaj_staging';
 const PASSWORD = 'Test12345';
 const args = process.argv.slice(2);
 const refresh = args.includes('--refresh');
+const allowProduction = args.includes('--allow-production');
 const total = Math.max(2, parseInt(args.find((a) => /^\d+$/.test(a)), 10) || 200);
 
 // اسم أول + اسم عائلة - بلا أرقام حتى تبدو الأسماء طبيعية.
@@ -90,7 +92,7 @@ function profileValues(gender, n) {
 
 async function main() {
   const { rows: [{ db }] } = await query('SELECT current_database() AS db');
-  if (db !== ALLOWED_DB) {
+  if (db !== ALLOWED_DB && !allowProduction) {
     throw new Error(`رفض: القاعدة الحالية "${db}" وليست "${ALLOWED_DB}". هذا السكربت للتجربة فقط.`);
   }
 

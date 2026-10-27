@@ -13,6 +13,7 @@
     "set-setting": "node src/db/set-setting.js",
     "set-admin": "node src/db/set-admin.js",
     "seed-test-users": "node src/db/seed-test-users.js",
+    "remove-test-users": "node src/db/remove-test-users.js",
     "migrate-photos-to-r2": "node src/db/migrate-photos-to-r2.js"
   },
   "dependencies": {
