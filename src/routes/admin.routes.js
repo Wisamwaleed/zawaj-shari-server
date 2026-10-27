@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
+import { getObjectBuffer, deleteObject } from '../services/storage.js';
 
 const router = Router();
 const REPORT_STATUSES = ['pending', 'resolved', 'dismissed'];
@@ -106,7 +107,8 @@ router.get('/users', async (req, res, next) => {
     const q = `%${String(req.query.q || '').trim()}%`;
     const { rows } = await query(
       `SELECT u.id, u.email, u.created_at, u.is_banned, u.banned_at, u.ban_reason,
-              u.is_admin, p.display_name, p.gender, p.age
+              u.is_admin, p.display_name, p.gender, p.age, p.city,
+              (p.photo_path IS NOT NULL) AS has_photo
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
        WHERE u.email ILIKE $1 OR p.display_name ILIKE $1
@@ -115,6 +117,54 @@ router.get('/users', async (req, res, next) => {
       [q]
     );
     res.json({ users: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * أحدث الصور المرفوعة لمراجعتها (الأحدث أولاً). ?page=1
+ * المشرف يرى الصورة الأصلية دون أي علاقة تعارف - هذا هو الغرض: منع المحتوى غير اللائق.
+ */
+router.get('/photos', async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const { rows } = await query(
+      `SELECT u.id, u.email, u.is_banned, p.display_name, p.gender, p.age, p.city,
+              p.updated_at AS photo_updated_at
+       FROM profiles p JOIN users u ON u.id = p.user_id
+       WHERE p.photo_path IS NOT NULL
+       ORDER BY p.updated_at DESC
+       LIMIT 31 OFFSET $1`,
+      [(page - 1) * 30]
+    );
+    res.json({ users: rows.slice(0, 30), hasMore: rows.length > 30, page });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** الصورة الأصلية لمستخدم (للمشرف فقط - المسار كله خلف adminRequired). */
+router.get('/users/:id/photo', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const buf = await getObjectBuffer(`photos/${id}/original.webp`);
+    if (!buf) return res.status(404).json({ error: 'لا توجد صورة' });
+    res.set('Cache-Control', 'no-store'); // صور خاصة: لا تُخزَّن في متصفح المشرف
+    res.type('image/webp').send(buf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** حذف صورة غير لائقة دون إيقاف الحساب. */
+router.delete('/users/:id/photo', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await deleteObject(`photos/${id}/original.webp`);
+    await deleteObject(`photos/${id}/blurred.webp`);
+    await query('UPDATE profiles SET photo_path = NULL, updated_at = now() WHERE user_id = $1', [id]);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -53,6 +53,15 @@
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   td, th { text-align: right; padding: 8px 6px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   #app { display: none; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+  .ph { background: rgba(0,0,0,0.3); border: 1px solid rgba(212,175,55,0.2); border-radius: 12px; overflow: hidden; }
+  .ph .img { width: 100%; aspect-ratio: 3 / 4; background: #111 center/cover no-repeat; cursor: zoom-in; display: flex; align-items: center; justify-content: center; color: #A8A29E; font-size: 12px; }
+  .ph .meta { padding: 8px; font-size: 12px; }
+  .ph .meta b { display: block; font-size: 13px; }
+  .ph .row { gap: 6px; margin-top: 6px; }
+  .ph button { padding: 6px 10px; font-size: 11px; }
+  #viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center; z-index: 10; flex-direction: column; gap: 12px; padding: 16px; }
+  #viewer img { max-width: 100%; max-height: 80vh; border-radius: 12px; }
 </style>
 </head>
 <body>
@@ -75,6 +84,18 @@
       <div class="stat"><b id="statPending">-</b><span>بلاغات قيد المراجعة</span></div>
       <div class="stat"><b id="statBanned">-</b><span>حسابات موقَفة</span></div>
       <div class="stat"><b id="statMessages">-</b><span>رسائل غير مقروءة</span></div>
+    </div>
+
+    <h2>مراجعة الصور (الأحدث أولاً)</h2>
+    <div class="card">
+      <div class="row">
+        <button class="secondary" onclick="loadPhotos(1)">تحديث</button>
+        <span class="muted">احذف أي صورة غير لائقة، أو أوقف الحساب إن تكرّر ذلك.</span>
+      </div>
+      <div id="photosGrid" class="grid"></div>
+      <div class="row" style="justify-content:center;margin-top:12px;">
+        <button class="secondary" id="photosMore" style="display:none" onclick="loadPhotos(photosPage + 1)">المزيد</button>
+      </div>
     </div>
 
     <h2>رسائل «تواصل معنا»</h2>
@@ -116,6 +137,11 @@
       <button class="secondary" onclick="logout()">تسجيل الخروج</button>
     </div>
   </div>
+</div>
+
+<div id="viewer" onclick="closeViewer()">
+  <img id="viewerImg" alt="" />
+  <div class="muted">اضغط في أي مكان للإغلاق</div>
 </div>
 
 <script>
@@ -181,6 +207,7 @@
     document.getElementById('app').style.display = 'block';
     loadReports();
     loadMessages();
+    loadPhotos(1);
   }
 
   function logout() {
@@ -210,6 +237,73 @@
       el.innerHTML = r.reports.map(renderReport).join('');
     } catch (e) {
       el.innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    }
+  }
+
+  // الصور خاصة: تُجلب بتوكن المشرف (لا رابط عام) ثم تُعرض كرابط blob مؤقت.
+  var photoUrls = {};
+  async function photoUrl(userId) {
+    if (photoUrls[userId]) return photoUrls[userId];
+    var res = await fetch('/api/admin/users/' + userId + '/photo', {
+      headers: { Authorization: 'Bearer ' + getToken() },
+    });
+    if (!res.ok) return null;
+    photoUrls[userId] = URL.createObjectURL(await res.blob());
+    return photoUrls[userId];
+  }
+
+  async function viewPhoto(userId) {
+    var url = await photoUrl(userId);
+    if (!url) { alert('لا توجد صورة لهذا المستخدم.'); return; }
+    document.getElementById('viewerImg').src = url;
+    document.getElementById('viewer').style.display = 'flex';
+  }
+  function closeViewer() { document.getElementById('viewer').style.display = 'none'; }
+
+  var photosPage = 1;
+  async function loadPhotos(page) {
+    var grid = document.getElementById('photosGrid');
+    if (page === 1) grid.innerHTML = '<p class="muted">جارِ التحميل...</p>';
+    try {
+      var r = await api('/admin/photos?page=' + page);
+      photosPage = page;
+      if (page === 1) grid.innerHTML = r.users.length ? '' : '<p class="muted">لا توجد صور.</p>';
+      r.users.forEach(function (u) {
+        var el = document.createElement('div');
+        el.className = 'ph';
+        el.id = 'ph-' + u.id;
+        var ban = u.is_banned
+          ? '<span class="badge banned">موقَف</span>'
+          : '<button class="danger" onclick="banUser(' + u.id + ')">إيقاف</button>';
+        el.innerHTML =
+          '<div class="img" onclick="viewPhoto(' + u.id + ')">...</div>' +
+          '<div class="meta"><b>' + escapeHtml(u.display_name || '-') + '</b>' +
+          escapeHtml([u.gender === 'female' ? 'أنثى' : u.gender === 'male' ? 'ذكر' : '', u.age, u.city].filter(Boolean).join(' · ')) +
+          '<div class="muted">' + escapeHtml(u.email) + '</div>' +
+          '<div class="row"><button class="secondary" onclick="deletePhoto(' + u.id + ')">حذف الصورة</button>' + ban + '</div></div>';
+        grid.appendChild(el);
+        photoUrl(u.id).then(function (url) {
+          var box = el.querySelector('.img');
+          if (url) { box.style.backgroundImage = 'url(' + url + ')'; box.textContent = ''; }
+          else box.textContent = 'تعذّر التحميل';
+        });
+      });
+      document.getElementById('photosMore').style.display = r.hasMore ? 'inline-block' : 'none';
+    } catch (e) {
+      grid.innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    }
+  }
+
+  async function deletePhoto(userId) {
+    if (!confirm('حذف صورة هذا المستخدم نهائياً؟')) return;
+    try {
+      await api('/admin/users/' + userId + '/photo', { method: 'DELETE' });
+      delete photoUrls[userId];
+      var el = document.getElementById('ph-' + userId);
+      if (el) el.remove();
+      alert('تم حذف الصورة.');
+    } catch (e) {
+      alert(e.message);
     }
   }
 
@@ -266,7 +360,8 @@
       '<div><b>المُبلِّغ:</b> ' + escapeHtml(r.reporter_name || '-') + ' (' + escapeHtml(r.reporter_email) + ')</div>' +
       '<div><b>المُبلَّغ عنه:</b> ' + escapeHtml(r.reported_name || '-') + ' (' + escapeHtml(r.reported_email) + ')</div>' +
       '<div style="margin:6px 0;">' + escapeHtml(r.reason || '') + '</div>' +
-      '<div class="row">' + actions + banBtn + '</div>' +
+      '<div class="row">' + actions + banBtn +
+        '<button class="secondary" onclick="viewPhoto(' + r.reported_id + ')">صورة المُبلَّغ عنه</button></div>' +
     '</div>';
   }
 
@@ -317,6 +412,10 @@
           var btn = u.is_banned
             ? '<button class="secondary" onclick="unbanUser(' + u.id + ')">رفع الإيقاف</button>'
             : '<button class="danger" onclick="banUser(' + u.id + ')">إيقاف</button>';
+          if (u.has_photo) {
+            btn += ' <button class="secondary" onclick="viewPhoto(' + u.id + ')">الصورة</button>' +
+              ' <button class="secondary" onclick="deletePhoto(' + u.id + ')">حذف الصورة</button>';
+          }
           return '<tr><td>' + escapeHtml(u.display_name || '-') + '</td><td>' + escapeHtml(u.email) +
             '</td><td>' + badge + '</td><td>' + btn + '</td></tr>';
         }).join('') + '</tbody></table>';
