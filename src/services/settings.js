@@ -16,6 +16,8 @@ const DEFAULTS = {
   ADS_REQUIRE_SSV: 'false',
   // تفعيل خطط مدفوعة بلا دفع (تجريبي فقط) - انظر subscription.routes.js
   ALLOW_DEMO_SUBSCRIPTIONS: 'false',
+  // الخطة المجانية بلا حدود رسائل/طلبات مؤقتاً (انظر limits.js) - تُعاد false بعد عمل الإعلانات.
+  OPEN_FREE_LIMITS: 'false',
 };
 
 const CACHE_TTL_MS = 15_000; // يكفي لتقليل الضغط على القاعدة دون تأخير ملموس عند تغيير إعداد

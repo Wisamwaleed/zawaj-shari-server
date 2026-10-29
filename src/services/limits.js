@@ -1,6 +1,6 @@
 import { query } from '../db/pool.js';
 import { httpError } from '../middleware/error.js';
-import { isFreeMode } from './settings.js';
+import { isFreeMode, getSetting } from './settings.js';
 
 /**
  * حدود كل "طبقة" اشتراك (tier). -1 = بلا حدود.
@@ -38,6 +38,13 @@ export const PLANS = {
 };
 
 export const TIERS = Object.keys(PLANS);
+
+/**
+ * الخطة المجانية بلا حدود للرسائل والطلبات (OPEN_FREE_LIMITS=true) - مؤقتاً ما دامت
+ * الإعلانات معطّلة من AdMob (التطبيق غير منشور في المتجر بعد)، إذ بلا إعلانات لا
+ * يملك المستخدم المجاني أي طريقة لتجاوز الحد. مزايا Platinum تبقى مدفوعة.
+ */
+const OPEN_FREE_PLAN = { ...PLANS.free, dailyRequests: -1, dailyMessages: -1, maxMessageLength: 2000 };
 
 /** ما يمنحه إعلان مكافأة واحد، حسب نوعه (انظر src/services/ads.js). */
 export const AD_REWARD_AMOUNTS = { requests: 3, messages: 10 };
@@ -104,7 +111,15 @@ export const PAID_OFFERS_BY_ID = Object.fromEntries(
 );
 
 /** وصف الخطة المجانية - نفس الحدود للرجال والنساء. */
-export function getFreePlanInfo() {
+export function getFreePlanInfo(open = false) {
+  if (open) {
+    return {
+      id: 'free',
+      name: 'مجاني',
+      duration: 'دائم',
+      features: ['تصفح الملفات المطابقة', 'طلبات تعارف غير محدودة', 'رسائل غير محدودة'],
+    };
+  }
   return {
     id: 'free',
     name: 'مجاني',
@@ -149,7 +164,10 @@ export async function getEffectiveSubscription(userId) {
     effectiveTier,
     expiresAt,
     expired,
-    plan: PLANS[effectiveTier],
+    plan:
+      effectiveTier === 'free' && (await getSetting('OPEN_FREE_LIMITS')) === 'true'
+        ? OPEN_FREE_PLAN
+        : PLANS[effectiveTier],
     freeMode,
   };
 }

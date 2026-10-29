@@ -26,7 +26,7 @@ router.get('/', authRequired, async (req, res, next) => {
 
     res.json({
       freeMode: sub.freeMode,
-      freePlan: getFreePlanInfo(),
+      freePlan: getFreePlanInfo(sub.effectiveTier === 'free' && sub.plan.dailyRequests < 0),
       paidOffers: PAID_OFFERS,
       // الطبقة المخزّنة والفعلية (قد تختلفان إذا انتهت الصلاحية أو كان FREE_MODE مفعَّلاً)
       storedTier: sub.storedTier,
