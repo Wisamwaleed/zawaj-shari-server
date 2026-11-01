@@ -14,7 +14,8 @@
     "set-admin": "node src/db/set-admin.js",
     "seed-test-users": "node src/db/seed-test-users.js",
     "remove-test-users": "node src/db/remove-test-users.js",
-    "migrate-photos-to-r2": "node src/db/migrate-photos-to-r2.js"
+    "migrate-photos-to-r2": "node src/db/migrate-photos-to-r2.js",
+    "seed-test-photos": "node src/db/seed-test-photos.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1147.0",
