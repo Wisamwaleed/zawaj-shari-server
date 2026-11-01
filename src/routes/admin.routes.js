@@ -101,19 +101,28 @@ router.post('/reports/:id/resolve', async (req, res, next) => {
   }
 });
 
-/** بحث مستخدمين بالبريد أو الاسم المعروض (لمعاينة سريعة/إيقاف حساب). */
+/**
+ * بحث مستخدمين بالبريد أو الاسم المعروض (لمعاينة سريعة/إيقاف حساب).
+ * ?type=real|test يحصر النتائج في الحسابات الحقيقية أو حسابات الاختبار (seed-test-users).
+ */
+const TEST_EMAIL = "u.email LIKE 'test.%@test.zawajshari.org'";
+
 router.get('/users', async (req, res, next) => {
   try {
     const q = `%${String(req.query.q || '').trim()}%`;
+    const type = String(req.query.type || '');
+    const typeFilter =
+      type === 'test' ? `AND ${TEST_EMAIL}` : type === 'real' ? `AND NOT (${TEST_EMAIL})` : '';
     const { rows } = await query(
       `SELECT u.id, u.email, u.created_at, u.is_banned, u.banned_at, u.ban_reason,
               u.is_admin, p.display_name, p.gender, p.age, p.city,
-              (p.photo_path IS NOT NULL) AS has_photo
+              (p.photo_path IS NOT NULL) AS has_photo,
+              (${TEST_EMAIL}) AS is_test
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
-       WHERE u.email ILIKE $1 OR p.display_name ILIKE $1
+       WHERE (u.email ILIKE $1 OR p.display_name ILIKE $1) ${typeFilter}
        ORDER BY u.created_at DESC
-       LIMIT 50`,
+       LIMIT 200`,
       [q]
     );
     res.json({ users: rows });

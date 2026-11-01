@@ -133,6 +133,11 @@
     <div class="card">
       <div class="row">
         <input id="userSearch" data-i18n-placeholder="searchPlaceholder" onkeydown="if(event.key==='Enter')searchUsers()" />
+        <select id="userType" onchange="searchUsers()">
+          <option value="" data-i18n="typeAll"></option>
+          <option value="real" data-i18n="typeReal"></option>
+          <option value="test" data-i18n="typeTest"></option>
+        </select>
         <button onclick="searchUsers()" data-i18n="search"></button>
       </div>
       <div id="usersList"></div>
@@ -210,6 +215,15 @@
       colName: 'الاسم',
       colEmail: 'البريد',
       colStatus: 'الحالة',
+      colDetails: 'الجنس / العمر / المدينة',
+      typeAll: 'كل الحسابات',
+      typeReal: 'الحقيقية فقط',
+      typeTest: 'حسابات الاختبار فقط',
+      testBadge: 'اختبار',
+      male: 'رجل',
+      female: 'امرأة',
+      noPhotoYet: 'بلا صورة',
+      usersCount: 'عدد النتائج',
       logout: 'تسجيل الخروج',
       tapToClose: 'اضغط في أي مكان للإغلاق',
       errorCode: 'خطأ',
@@ -273,6 +287,15 @@
       colName: 'Name',
       colEmail: 'Email',
       colStatus: 'Status',
+      colDetails: 'Gender / Age / City',
+      typeAll: 'All accounts',
+      typeReal: 'Real only',
+      typeTest: 'Test accounts only',
+      testBadge: 'Test',
+      male: 'Male',
+      female: 'Female',
+      noPhotoYet: 'No photo',
+      usersCount: 'Results',
       logout: 'Sign out',
       tapToClose: 'Tap anywhere to close',
       errorCode: 'Error',
@@ -378,6 +401,7 @@
     loadReports();
     loadMessages();
     loadPhotos(1);
+    searchUsers();
   }
 
   function logout() {
@@ -570,17 +594,23 @@
     var el = document.getElementById('usersList');
     el.innerHTML = '<p class="muted">' + t('searching') + '</p>';
     try {
-      var r = await api('/admin/users?q=' + encodeURIComponent(q));
+      var type = document.getElementById('userType').value;
+      var r = await api('/admin/users?q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(type));
       if (!r.users.length) {
         el.innerHTML = '<p class="muted">' + t('noResults') + '</p>';
         return;
       }
-      el.innerHTML = '<table><thead><tr><th>' + t('colName') + '</th><th>' + t('colEmail') + '</th><th>' +
-        t('colStatus') + '</th><th></th></tr></thead><tbody>' +
+      el.innerHTML = '<p class="muted">' + t('usersCount') + ': ' + r.users.length + '</p>' +
+        '<table><thead><tr><th>' + t('colName') + '</th><th>' + t('colDetails') + '</th><th>' +
+        t('colEmail') + '</th><th>' + t('colStatus') + '</th><th></th></tr></thead><tbody>' +
         r.users.map(function (u) {
           var badge = u.is_banned
             ? '<span class="badge banned">' + t('banned') + '</span>'
             : '<span class="badge">' + t('active') + '</span>';
+          if (u.is_test) badge += ' <span class="badge">' + t('testBadge') + '</span>';
+          if (!u.has_photo) badge += ' <span class="muted">' + t('noPhotoYet') + '</span>';
+          var details = [u.gender ? t(u.gender) : '', u.age || '', u.city || '']
+            .filter(Boolean).map(function (s) { return escapeHtml(String(s)); }).join(' · ') || '-';
           var btn = u.is_banned
             ? '<button class="secondary" onclick="unbanUser(' + u.id + ')">' + t('unban') + '</button>'
             : '<button class="danger" onclick="banUser(' + u.id + ')">' + t('ban') + '</button>';
@@ -588,7 +618,7 @@
             btn += ' <button class="secondary" onclick="viewPhoto(' + u.id + ')">' + t('photo') + '</button>' +
               ' <button class="secondary" onclick="deletePhoto(' + u.id + ')">' + t('deletePhoto') + '</button>';
           }
-          return '<tr><td>' + escapeHtml(u.display_name || '-') + '</td><td>' + escapeHtml(u.email) +
+          return '<tr><td>' + escapeHtml(u.display_name || '-') + '</td><td>' + details + '</td><td>' + escapeHtml(u.email) +
             '</td><td>' + badge + '</td><td>' + btn + '</td></tr>';
         }).join('') + '</tbody></table>';
     } catch (e) {
